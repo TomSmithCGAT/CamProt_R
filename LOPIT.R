@@ -283,7 +283,7 @@ LOPITPCAPlotter <- function(PCA_df, axes, xlims=FALSE, ylims=FALSE, foi=FALSE, a
     
   }
   
-  if(foi){
+  if(!missing(foi)){
     features_df <- PCA_df[PCA_df[['Row.names']] %in% foi,]
     p <- p + geom_point(data=features_df, aes(X, Y), shape=foi_shape, size=foi_size, alpha=foi_alpha,
                         colour=foi_colour, fill=foi_fill, stroke=0.4)
