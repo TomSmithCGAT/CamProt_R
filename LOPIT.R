@@ -215,13 +215,8 @@ plotCompareDistances <- function(qsep_df1, qsep_df2, exp1="All", exp2="TMT2", qs
 # ------------------------------------------------------------------------------------------------------------
 # Function	: plotPCA
 # ------------------------------------------------------------------------------------------------------------
-
-plotPCA <- function(res, dims=c(1,2), xlims=F, ylims=F, foi=F, add_foi_names=F,
-                    just_markers=F, m_colours=F, re_order_markers=F, marker_levels=NULL,
-                    title=F, fcol="markers", point_size=F, foi_size=1, foi_alpha=1,foi_shape=8,
-                    foi_colour="black", foi_fill="black"){
-  
-  PCA_matrix <- plot2D(res, fcol=fcol, plot=F, dims=dims)
+makePCA_proj <- function(res, fcol="markers", dims=c(1,2)){
+  PCA_matrix <- plot2D(res, fcol=fcol, plot=FALSE, dims=dims)
   axes <- colnames(PCA_matrix)
   colnames(PCA_matrix) <- c("X", "Y")
   PCA_df <- merge(data.frame(PCA_matrix), data.frame(fData(res)), by="row.names")
@@ -229,6 +224,22 @@ plotPCA <- function(res, dims=c(1,2), xlims=F, ylims=F, foi=F, add_foi_names=F,
   PCA_df$unknown <- PCA_df$markers=="unknown"
   PCA_df$markers[PCA_df$unknown] <- NA
   PCA_df <- PCA_df[order(-PCA_df$unknown),]
+  return(list("PCA_df"=PCA_df, "axes"=axes))
+}
+
+LOPITPCAPlotter <- function(PCA_df, axes, xlims=FALSE, ylims=FALSE, foi=FALSE, add_foi_names=FALSE,
+                    just_markers=FALSE, m_colours=FALSE, re_order_markers=FALSE, marker_levels=NULL,
+                    title=FALSE, fcol=FALSE, point_size=FALSE, foi_size=1, foi_alpha=1, foi_shape=8,
+                    foi_colour="black", foi_fill="black", return_proj=FALSE){
+  
+  if(!missing(fcol)){
+    # remake marker column
+    PCA_df$markers <- PCA_df[[fcol]]
+    PCA_df$markers <- PCA_df[[fcol]]
+    PCA_df$unknown <- PCA_df$markers=="unknown"
+    PCA_df$markers[PCA_df$unknown] <- NA
+    PCA_df <- PCA_df[order(-PCA_df$unknown),]
+  }
   
   if(re_order_markers!=FALSE){
     PCA_df$markers <- factor(PCA_df$markers, levels=marker_levels)
@@ -242,13 +253,13 @@ plotPCA <- function(res, dims=c(1,2), xlims=F, ylims=F, foi=F, add_foi_names=F,
     geom_point(aes(X, Y, colour=markers, alpha=unknown)) +
     scale_alpha_manual(values=c(0.5,0.1), guide=F) +
     #scale_colour_manual(values=rep("#E41A1C70", 12), na.value="grey95") +
-    scale_colour_manual(values=m_colours, na.value="grey60", name="") +
-    my_theme + xlab(axes[1]) + ylab(axes[2]) +
+    scale_colour_manual(values=m_colours, na.value="grey80", name="") +
+    my_theme + xlab(axes[1]) + ylab(axes[2])
     
   if(!missing(point_size)){
     p <- p + aes_string(size=point_size) +
-      scale_size_continuous(guide=F, range=c(0.1,2))
-    
+      scale_size_area(guide=F, max_size=2)
+    print(p)
   }
   
   if(!missing(title)){
@@ -302,6 +313,11 @@ plotPCA <- function(res, dims=c(1,2), xlims=F, ylims=F, foi=F, add_foi_names=F,
   return(plots)
 }
 
+plotPCA <- function(res, fcol, dims=c(1,2), ...){
+  
+    PCA <- makePCA_proj(res, fcol, dims)
+    LOPITPCAPlotter(PCA$PCA_df, PCA$axes, ...)
+}
 
 # ------------------------------------------------------------------------------------------------------------
 # Function	: checkParams
