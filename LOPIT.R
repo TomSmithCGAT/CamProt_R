@@ -14,6 +14,37 @@ getClassColours <- function(){
   
 }
 
+organelle_order <- c("CYTOSOL", "PROTEASOME", "RIBOSOME", "RIBOSOME 40S", "RIBOSOME 60S",
+                     "ER", "GOLGI", "GA", "LYSOSOME", "PM", "PEROXISOME", "MITOCHONDRION",
+                     "NUCLEUS/CHROMATIN", "NUCLEUS", "NUCLEUS-CHROMATIN", "CHROMATIN",
+                     "unknown", "missing")
+
+organelle2colour <- list("CYTOSOL"="#E41A1C",
+                         "PROTEASOME"="#984EA3",
+                         "RIBOSOME"="#9999FF",
+                         "RIBOSOME 40S"="#9999FF",
+                         "RIBOSOME 60S"="#000099",
+                         "ER"="#FF7F00",
+                         "GOLGI"="#377EB8",
+                         "GA"="#377EB8",
+                         "LYSOSOME"="#F781BF",
+                         "PM"="#00CED1",
+                         "PEROXISOME"="#A65628",
+                         "MITOCHONDRION"="#FFD700",
+                         "NUCLEUS/CHROMATIN"="#9ACD32",
+                         "NUCLEUS-CHROMATIN"="#238B45",
+                         "NUCLEUS"="#9ACD32",
+                         "CHROMATIN"="#238B45",
+                         "unknown"="grey50",
+                         "missing"="grey50")
+
+# colour-blind friendly pallete when to be used when not plotting organelles
+cbPalette <- c("#999999", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
+
+getColours <-function(organelles){
+  unlist(organelle2colour[names(organelle2colour) %in% organelles], use.names = FALSE)
+}
+
 my_theme <- theme_bw() + theme(text=element_text(size=20), aspect.ratio=1, panel.grid=element_blank())
 
 # ------------------------------------------------------------------------------------------------------------
@@ -43,6 +74,7 @@ PlotMarkerProfiles <- function(res, fcol="master_protein", keep_markers=c("CYTOS
   
   exprs_df <- exprs(res)
   f_df <- fData(res)
+  f_df$markers <- f_df[[fcol]]
   exprs_df <- melt(exprs_df)
   exprs_df <- merge(exprs_df, f_df['markers'], by.x="Var1", by.y="row.names")
   
@@ -95,7 +127,8 @@ PlotMarkerProfiles <- function(res, fcol="master_protein", keep_markers=c("CYTOS
     
   }
   
-  #print(p)
+  p <- p + guides(colour=guide_legend(override.aes = list(alpha = 1)))
+  
   return(p)
 }
 
@@ -103,8 +136,8 @@ PlotMarkerProfiles <- function(res, fcol="master_protein", keep_markers=c("CYTOS
 # Function	: makeQSepDistance
 # ------------------------------------------------------------------------------------------------------------
 
-makeQSepDistance <- function(res_with_markers, plot_cluster=F){
-  qsep_dist <- qsep(QSep(res_with_markers))
+makeQSepDistance <- function(res_with_markers, plot_cluster=F, ...){
+  qsep_dist <- qsep(QSep(res_with_markers, ...))
   clustering <- hclust(as.dist(qsep_dist))
   
   if(plot_cluster){
@@ -127,7 +160,7 @@ makeQSepDistancePlot <- function(qsep_df){
     geom_tile() + my_theme +
     theme(axis.text.x=element_text(angle=90, hjust=1, vjust=0.5), aspect.ratio = 1) +
     theme(axis.text=element_text(size=10)) + xlab("") + ylab("") +
-    scale_fill_continuous(name="Distance")
+    scale_fill_continuous(low="white", high="steelblue", name="QSep\ndistance")
   
   return(p)
   
@@ -429,9 +462,9 @@ plotBothLOPITs <- function(LOPIT1, LOPIT2, foi=F, xlims=c(-5.5, 8), ylims=c(-6,6
 # Function	: plot collection of PCs
 # ------------------------------------------------------------------------------------------------------------
 
-plotPC1to_4 <- function(res, just_markers=F){
-  p1 <- plotPCA(res, just_markers=just_markers)
-  p2 <- plotPCA(res, dims=c(3,4), just_markers=just_markers)
+plotPC1to_4 <- function(res, just_markers=F, ...){
+  p1 <- plotPCA(res, just_markers=just_markers, ...)
+  p2 <- plotPCA(res, dims=c(3,4), just_markers=just_markers, ...)
   if(just_markers){
     grid.arrange(p1$p2, p2$p2, ncol=1)}
   else{
@@ -439,11 +472,11 @@ plotPC1to_4 <- function(res, just_markers=F){
   }
 }
 
-plotPC1to_8 <- function(res, just_markers=F){
-  p1 <- plotPCA(res, just_markers=just_markers)
-  p2 <- plotPCA(res, dims=c(3,4), just_markers=just_markers)
-  p3 <- plotPCA(res, dims=c(5,6), just_markers=just_markers)
-  p4 <- plotPCA(res, dims=c(7,8), just_markers=just_markers)
+plotPC1to_8 <- function(res, just_markers=F, ...){
+  p1 <- plotPCA(res, just_markers=just_markers, ...)
+  p2 <- plotPCA(res, dims=c(3,4), just_markers=just_markers, ...)
+  p3 <- plotPCA(res, dims=c(5,6), just_markers=just_markers, ...)
+  p4 <- plotPCA(res, dims=c(7,8), just_markers=just_markers, ...)
   if(just_markers){
     grid.arrange(p1$p2, p2$p2, p3$p2, p4$p2, ncol=2)}
   else{
@@ -468,3 +501,47 @@ plotOrganelleF1 <- function(melted_F1_organelle){
 }
 
 
+catLOPITs <- function(lopit_a, lopit_b, fdata_merge="master_protein"){
+  intersect_proteins <- intersect(rownames(exprs(lopit_a)), rownames(exprs(lopit_b)))
+  
+  subsetToCommonExprs <- function(lopit, common_proteins){
+    exprs_df <- data.frame(exprs(lopit))
+    exprs_df <- exprs_df[rownames(exprs_df) %in% common_proteins,]
+    exprs_df <- exprs_df[common_proteins, ]
+    return(exprs_df)
+  }
+  
+  exprs_df1 <- subsetToCommonExprs(lopit_a, intersect_proteins)
+  exprs_df2 <- subsetToCommonExprs(lopit_b, intersect_proteins)
+  print(sum(rownames(exprs_df1) != rownames(exprs_df2))) # manual check for mismatch in protein index
+  
+  cat_exprs_df <- cbind(exprs_df1, exprs_df2)
+  
+  pdata_df1 <- data.frame(pData(lopit_a))
+  pdata_df1$sample <- rownames(pdata_df1)
+  pdata_df2 <- data.frame(pData(lopit_b))
+  
+  print(dim(pdata_df1))
+  print(dim(pdata_df2))
+  return(0)
+  #cat_pData <- rbind(pdata_df1, pdata_df2)
+  
+  subsetToCommonfData <- function(lopit_norm, common_proteins){
+    fdata_df <- data.frame(fData(lopit_norm))
+    fdata_df <- fdata_df[rownames(fdata_df) %in% common_proteins,]
+    fdata_df <- fdata_df[common_proteins, ]
+    return(fdata_df)
+  }
+  
+  fdata_df1 <- subsetToCommonfData(lopit_a, intersect_proteins)
+  fdata_df2 <- subsetToCommonfData(lopit_b, intersect_proteins)
+  cat_fdata <- merge(fdata_df1, fdata_df2, by=fdata_merge)
+  
+  cat_LOPIT <- MSnSet(as.matrix(cat_exprs_df), cat_fdata, cat_pData)
+  print(head(data.frame(exprs(cat_LOPIT))))
+  print(head(fData(cat_LOPIT)))
+  print(head(pData(cat_LOPIT)))
+  
+  return(cat_LOPIT)
+  
+}
