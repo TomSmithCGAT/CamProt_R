@@ -47,7 +47,7 @@ parsePTMScores <- function(obj, threshold=95, ptm_col="PhosphoRS..Best.Site.Prob
               "Retained peptides"=0, "Filtered peptides"=0,
               "Filtered multi peptides with sites above threshold"=0,
               "Total detected sites"=0, "Retained sites"=0, "Filtered sites"=0,
-              "monophosphate"=0, "biphosphate"=0, "multiphosphate"=0,
+              "monoPTM"=0, "biPTM"=0, "multiPTM"=0,
               "Too many isoforms"=0)
 
   
