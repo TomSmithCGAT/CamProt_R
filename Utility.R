@@ -55,8 +55,8 @@ parsePTMScores <- function(obj, threshold=95, ptm_col="PhosphoRS..Best.Site.Prob
     log$`Total peptides` <- log$`Total peptides` + 1
     
     if (peptide_ptm_scores[[1]] == "Too many isoforms"){
-      log$`Too many isoforms` <- log$`Too many isoforms` + 1
-      log$`Filtered peptides` <- log$`Filtered peptides` + 1
+      log[["Too many isoforms"]] <- log[["Too many isoforms"]] + 1
+      log[["Filtered peptides"]] <- log[["Filtered peptides"]] + 1
       next()
     }
 
@@ -66,8 +66,8 @@ parsePTMScores <- function(obj, threshold=95, ptm_col="PhosphoRS..Best.Site.Prob
     
     # if any score is below threshold, disregard all putative ptm sites
     if (any(as.numeric(scores)<threshold)){
-      log$`Filtered sites` <- log$`Filtered sites` + length(peptide_ptm_scores)/2
-      log$`Filtered peptides` <- log$`Filtered peptides` + 1
+      log[["Filtered sites"]] <- log[["Filtered sites"]] + length(peptide_ptm_scores)/2
+      log[["Filtered peptides"]] <- log[["Filtered peptides"]] + 1
       if (any(as.numeric(scores)>=threshold)){
         log$`..but some sites above threshold` <- log$`..but some sites above threshold` + 1  
       }
@@ -76,8 +76,8 @@ parsePTMScores <- function(obj, threshold=95, ptm_col="PhosphoRS..Best.Site.Prob
       next()
     }
     
-    log$`Retained sites` <- log$`Retained sites` + length(peptide_ptm_scores)/2
-    log$`Retained peptides` <- log$`Retained peptides` + 1
+    log[["Retained sites"]] <- log[["Retained sites"]] + length(peptide_ptm_scores)/2
+    log[["Retained peptides"]] <- log[["Retained peptides"]] + 1
     
     ptms <- peptide_ptm_scores[seq(1, length(peptide_ptm_scores), 2)] # extract the PTMs info
     split_ptms <- unlist(strsplit(ptms, split =  '\\(|\\)')) # split to remove parantheses
@@ -104,7 +104,7 @@ parsePTMScores <- function(obj, threshold=95, ptm_col="PhosphoRS..Best.Site.Prob
   
   if(verbose){
     for(event in names(log)){
-      print(sprintf("%s: %i", event, log[[event]]))
+      cat(sprintf("%s: %i\n", event, log[[event]]))
     }
   }
   
