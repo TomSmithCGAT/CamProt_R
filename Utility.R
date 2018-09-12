@@ -8,13 +8,13 @@ suppressMessages(library(dplyr))
 suppressMessages(library(tidyr))
 
 my_theme <- theme_bw() + theme(
-  text=element_text(size=20,  family="serif"), panel.grid=element_blank(), aspect.ratio=1,
+  text=element_text(size=20,  family="serif"),
+  panel.grid=element_blank(), aspect.ratio=1,
   panel.border = element_blank(),
   panel.background = element_blank(),
   axis.line = element_line(colour = "black"))
 
 cbPalette <- c("#999999", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
-
 
 
 ### parsePTMScores ###
@@ -44,10 +44,10 @@ parsePTMScores <- function(obj, threshold=95, ptm_col="PhosphoRS..Best.Site.Prob
   split_probabities <- strsplit(obj[[ptm_col]], split=prob_split)
   
   log <- list("Total peptides"=0, "Retained peptides"=0, "Filtered peptides"=0,
+              "..but some sites above threshold"=0,
               "Total sites"=0, "Retained sites"=0, "Filtered sites"=0,
               "Too many isoforms"=0)
-  
-  
+
   for (i in seq_along(split_probabities)){
     
     peptide_ptm_scores <- split_probabities[[i]]
@@ -68,6 +68,9 @@ parsePTMScores <- function(obj, threshold=95, ptm_col="PhosphoRS..Best.Site.Prob
     if (any(as.numeric(scores)<threshold)){
       log$`Filtered sites` <- log$`Filtered sites` + length(peptide_ptm_scores)/2
       log$`Filtered peptides` <- log$`Filtered peptides` + 1
+      if (any(as.numeric(scores)>=threshold)){
+        log$`..but some sites above threshold` <- log$`..but some sites above threshold` + 1  
+      }
       # if we want to handle this differently, can implement an alternative approach here
       # and move the rest of the code below into an else clause
       next()
@@ -162,7 +165,6 @@ plotMultipleDistributions <- function(df, gene_sets, ylb="Abundance (log2)"){
   df <- melt(as.matrix(df))
   df <- separate(df, Var2, into=c("dosage", "replicate"), sep="_", remove=FALSE)
   
-  
   tmp_dfs <- NULL
   for(cat in names(gene_sets)){
     genes = gene_sets[[cat]]
@@ -180,7 +182,6 @@ plotMultipleDistributions <- function(df, gene_sets, ylb="Abundance (log2)"){
   p <- ggplot(aggregate(value~Var1+dosage+lab, final_df, FUN=mean),
               aes(dosage, value, colour=lab)) +
     my_theme +
-    #stat_summary(geom="point", fun.y=mean) +
     scale_colour_discrete(guide=F) +
     xlab("")+ ylab(ylb) +
     theme(axis.text.x = element_text(angle=90, vjust=0.5, hjust=1)) +
@@ -192,12 +193,8 @@ plotMultipleDistributions <- function(df, gene_sets, ylb="Abundance (log2)"){
   
   p3 <- p +
     aes(fill=lab) +
-    #geom_quasirandom(colour="black", pch=21, size=2, stroke = 0.2) +
     scale_fill_discrete(guide=F) +
-    #stat_summary(geom="point", fun.y = median, colour="black", size=3) +
     stat_summary(geom="pointrange", colour="black", size=0.5)#width=0.3, lwd=1, size=1)
-  #fun.ymin = function(z) {quantile(z,0.25)},
-  #fun.ymax = function(z) {quantile(z,0.75)})
   print(p3)
   
   p4 <- p + stat_summary(aes(group=Var1), fun.y = mean, geom="line", alpha=0.1)
