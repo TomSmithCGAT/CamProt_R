@@ -365,11 +365,11 @@ checkParams <- function(res_with_markers, ml_method=svmOptimisation,
   
   sink("tmp") # we don't want the output
   if(weight==F){
-    params <- ml_method(res_with_markers, fcol="markers", times=times,
+    params <- ml_method(res_with_markers, fcol=fcol, times=times,
                         verbose=T, ...)
   }
   else{
-    params <- ml_method(res_with_markers, fcol="markers", times=times,
+    params <- ml_method(res_with_markers, fcol=fcol, times=times,
                         verbose=T, class.weights=classWeights(res_with_markers), ...)
   }
   sink()
@@ -400,7 +400,7 @@ checkParams <- function(res_with_markers, ml_method=svmOptimisation,
   }
   
   OrganelleF1 <- as.data.frame(f1scoreperO)
-  colnames(OrganelleF1) <- getMarkerClasses(res_with_markers)
+  colnames(OrganelleF1) <- getMarkerClasses(res_with_markers, fcol=fcol)
   OrganelleF1$desc <- desc
   OrganelleF1$weight <- weight
   
