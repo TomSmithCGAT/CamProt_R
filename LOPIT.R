@@ -14,13 +14,15 @@ getClassColours <- function(){
   
 }
 
-organelle_order <- c("CYTOSOL", "PROTEASOME", "RIBOSOME", "RIBOSOME 40S", "RIBOSOME 60S",
+organelle_order <- c("CYTOSOL", "PROTEASOME", "PROTEASOME 19S", "PROTEASOME 20S", "RIBOSOME", "RIBOSOME 40S", "RIBOSOME 60S",
                      "ER", "GOLGI", "GA", "LYSOSOME", "PM", "PEROXISOME", "MITOCHONDRION",
                      "NUCLEUS/CHROMATIN", "NUCLEUS", "NUCLEUS-CHROMATIN", "CHROMATIN",
                      "unknown", "missing")
 
 organelle2colour <- list("CYTOSOL"="#E41A1C",
                          "PROTEASOME"="#984EA3",
+                         "PROTEASOME 19S"="#704da2",
+                         "PROTEASOME 20S"="#a24d70",
                          "RIBOSOME"="#9999FF",
                          "RIBOSOME 40S"="#9999FF",
                          "RIBOSOME 60S"="#000099",
@@ -56,6 +58,7 @@ PlotProteinProfiles <- function(res){
   exprs_df <- exprs(res)
   exprs_df <- melt(exprs_df)
   
+
   p <- ggplot(exprs_df, aes(Var2, value, colour=Var1, group=Var1)) +
     my_theme + geom_line() +
     theme(aspect.ratio=1, axis.text.x=element_text(angle=90, vjust=0.5, hjust=1, size=10))  +
@@ -69,7 +72,7 @@ PlotProteinProfiles <- function(res){
 # ------------------------------------------------------------------------------------------------------------
 
 PlotMarkerProfiles <- function(res, fcol="master_protein", keep_markers=c("CYTOSOL"), unknown=F, plot_all=T,
-                               individual_plots=F, foi=NULL){
+                               individual_plots=F, foi=NULL, organelle_order=NULL){
   
   
   exprs_df <- exprs(res)
@@ -87,7 +90,11 @@ PlotMarkerProfiles <- function(res, fcol="master_protein", keep_markers=c("CYTOS
     exprs_trim_df <- exprs_df[exprs_df$markers %in% keep_markers,]
   }
   
-  p <- ggplot(exprs_trim_df, aes(Var2, value, colour=markers)) +
+  if(!missing(organelle_order)){
+    exprs_trim_df$markers <- factor(exprs_trim_df$markers, levels=organelle_order)
+  }
+  
+  p <- ggplot(exprs_trim_df, aes(factor(Var2), value, colour=markers)) +
     my_theme +
     theme(aspect.ratio=1, axis.text.x=element_text(angle=90, vjust=0.5, hjust=1, size=10))  +
     xlab("") + ylab("norm. abundance") + 
@@ -171,7 +178,7 @@ makeQSepDistancePlot <- function(qsep_df){
 # ------------------------------------------------------------------------------------------------------------
 
 plotCompareDistances <- function(qsep_df1, qsep_df2, exp1="All", exp2="TMT2", qsep_df3=F, exp3=F,
-                                 membrane_organelles=FALSE, facet_out=F, plot_den=F){
+                                 membrane_organelles=FALSE, facet_out=F, plot_den=F, organelle_order=NULL, remove=F){
   
   if(membrane_organelles==FALSE){
     membrane_organelles <- c("ER", "PEROXISOME", "PM", "MITOCHONDRIA", "GOLGI", "LYSOSOME")
@@ -184,6 +191,15 @@ plotCompareDistances <- function(qsep_df1, qsep_df2, exp1="All", exp2="TMT2", qs
   if(!qsep_df3==FALSE){
     qsep_df3$samples <- exp3
     qsep_cat_df <- rbind(qsep_cat_df, qsep_df3)
+  }
+  
+  if(!missing(organelle_order)){
+    qsep_cat_df$Var1 <- factor(qsep_cat_df$Var1, levels=organelle_order)
+    qsep_cat_df$Var2 <- factor(qsep_cat_df$Var2, levels=organelle_order)
+  }
+  
+  if(!missing(organelle_order)){
+    qsep_cat_df <- qsep_cat_df %>% filter(Var1!=remove, Var2!=remove)
   }
   
   plots <-function(qsep_cat_df, colour_shape_same=T, x, y, facet_out=F){
@@ -243,6 +259,33 @@ plotCompareDistances <- function(qsep_df1, qsep_df2, exp1="All", exp2="TMT2", qs
     
   }
   
+}
+
+
+# ------------------------------------------------------------------------------------------------------------
+# Function	: plotMinDistance
+# ------------------------------------------------------------------------------------------------------------
+plotMinDistance <- function(qsep1, qsep2, order_organelle=NULL){
+
+  qsep1$type="qsep1"
+  qsep2$type="qsep2"
+    
+  qsep_min_comparison <- rbind(qsep1, qsep2) %>% filter(Var1!=Var2) %>% group_by(type, Var1) %>%
+  summarise(min_distance=min(value)) %>%
+  spread(key=type, value=min_distance) %>%
+  mutate(Var1=factor(Var1, levels=sort(as.character(Var1)))) %>%
+  data.frame()
+
+  if(!missing(order_organelle)){
+    qsep_min_comparison$Var1 <- factor(qsep_min_comparison$Var1, levels=order_organelle)
+  }
+  p <- qsep_min_comparison %>%
+    ggplot(aes(qsep1, qsep2)) +
+    geom_abline(slope=1, linetype=2, colour="grey50") +
+    geom_point(aes(colour=Var1), size=6) +
+    my_theme
+  
+  return(p)
 }
 
 # ------------------------------------------------------------------------------------------------------------
@@ -333,7 +376,7 @@ LOPITPCAPlotter <- function(PCA_df, axes, xlims=FALSE, ylims=FALSE, foi=FALSE, a
     
     if(just_markers){
       features_df2 <- PCA_df2[PCA_df2[['Row.names']] %in% foi,]
-      p2 <- p2 + geom_point(data=features_df2, aes(X,y), shape=8)
+      p2 <- p2 + geom_point(data=features_df2, aes(X,Y), shape=8)
       
       if(!missing(point_size)){
         p2 <- p2 + aes_string(size=point_size)
@@ -365,11 +408,11 @@ checkParams <- function(res_with_markers, ml_method=svmOptimisation,
   
   sink("tmp") # we don't want the output
   if(weight==F){
-    params <- ml_method(res_with_markers, fcol="markers", times=times,
+    params <- ml_method(res_with_markers, fcol=fcol, times=times,
                         verbose=T, ...)
   }
   else{
-    params <- ml_method(res_with_markers, fcol="markers", times=times,
+    params <- ml_method(res_with_markers, fcol=fcol, times=times,
                         verbose=T, class.weights=classWeights(res_with_markers), ...)
   }
   sink()
@@ -400,7 +443,7 @@ checkParams <- function(res_with_markers, ml_method=svmOptimisation,
   }
   
   OrganelleF1 <- as.data.frame(f1scoreperO)
-  colnames(OrganelleF1) <- getMarkerClasses(res_with_markers)
+  colnames(OrganelleF1) <- getMarkerClasses(res_with_markers, fcol=fcol)
   OrganelleF1$desc <- desc
   OrganelleF1$weight <- weight
   
@@ -505,26 +548,27 @@ catLOPITs <- function(lopit_a, lopit_b, fdata_merge="master_protein"){
   intersect_proteins <- intersect(rownames(exprs(lopit_a)), rownames(exprs(lopit_b)))
   
   subsetToCommonExprs <- function(lopit, common_proteins){
-    exprs_df <- data.frame(exprs(lopit))
-    exprs_df <- exprs_df[rownames(exprs_df) %in% common_proteins,]
-    exprs_df <- exprs_df[common_proteins, ]
-    return(exprs_df)
+    exprs_data <- exprs(lopit)
+    exprs_data <- exprs_data[rownames(exprs_data) %in% common_proteins,]
+    exprs_data <- exprs_data[common_proteins, ]
+    return(exprs_data)
   }
   
   exprs_df1 <- subsetToCommonExprs(lopit_a, intersect_proteins)
+  colnames(exprs_df1) <- paste0("1_", colnames(exprs_df1))
   exprs_df2 <- subsetToCommonExprs(lopit_b, intersect_proteins)
+  colnames(exprs_df2) <- paste0("2_", colnames(exprs_df2))
+  
   print(sum(rownames(exprs_df1) != rownames(exprs_df2))) # manual check for mismatch in protein index
   
   cat_exprs_df <- cbind(exprs_df1, exprs_df2)
   
   pdata_df1 <- data.frame(pData(lopit_a))
-  pdata_df1$sample <- rownames(pdata_df1)
+  rownames(pdata_df1) <- paste0("1_", rownames(pdata_df1))
   pdata_df2 <- data.frame(pData(lopit_b))
+  rownames(pdata_df2) <- paste0("2_", rownames(pdata_df2))
   
-  print(dim(pdata_df1))
-  print(dim(pdata_df2))
-  return(0)
-  #cat_pData <- rbind(pdata_df1, pdata_df2)
+  cat_pData <- rbind(pdata_df1, pdata_df2)
   
   subsetToCommonfData <- function(lopit_norm, common_proteins){
     fdata_df <- data.frame(fData(lopit_norm))
@@ -536,12 +580,30 @@ catLOPITs <- function(lopit_a, lopit_b, fdata_merge="master_protein"){
   fdata_df1 <- subsetToCommonfData(lopit_a, intersect_proteins)
   fdata_df2 <- subsetToCommonfData(lopit_b, intersect_proteins)
   cat_fdata <- merge(fdata_df1, fdata_df2, by=fdata_merge)
+  rownames(cat_fdata) <- cat_fdata[[fdata_merge]]
   
-  cat_LOPIT <- MSnSet(as.matrix(cat_exprs_df), cat_fdata, cat_pData)
-  print(head(data.frame(exprs(cat_LOPIT))))
-  print(head(fData(cat_LOPIT)))
-  print(head(pData(cat_LOPIT)))
-  
+  cat_LOPIT <- MSnSet(cat_exprs_df, cat_fdata, cat_pData)
+
   return(cat_LOPIT)
+  
+}
+
+
+getPCALoadings <- function(obj){
+  .pca <- prcomp(exprs(obj))
+  loadings <- .pca$rotation
+  return(loadings)
+}  
+
+plotLoadings <- function(loadings){
+  
+  p <- melt(loadings) %>%
+    ggplot(aes(Var1, value)) +
+    geom_bar(stat="identity") +
+    facet_wrap(~Var2) +
+    my_theme +
+    theme(axis.text.x=element_text(size=10, angle=45, vjust=1, hjust=1))
+  
+  return(p)
   
 }
