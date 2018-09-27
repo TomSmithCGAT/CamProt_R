@@ -44,10 +44,10 @@ parsePTMScores <- function(obj, threshold=95, ptm_col="PhosphoRS..Best.Site.Prob
   split_probabities <- strsplit(obj[[ptm_col]], split=prob_split)
   
   log <- list("Total peptides"=0, "Total detected PTMpeptides"=0,
-              "Retained peptides"=0, "Filtered peptides"=0,
-              "Filtered multi peptides with sites above threshold"=0,
-              "Total detected sites"=0, "Retained sites"=0, "Filtered sites"=0,
-              "monoPTM"=0, "biPTM"=0, "multiPTM"=0,
+              "Peptides passing filter"=0, "Peptides failing filter"=0,
+              "BiPTM/multiPTM peptides where some sites fail filter"=0,
+              "Total detected sites"=0, "Sites passing filter"=0, "Sites failing filter"=0,
+              "monoPTM passing filter"=0, "biPTM passing filter"=0, "multiPTM passing filter"=0,
               "Too many isoforms"=0)
 
   
@@ -62,7 +62,7 @@ parsePTMScores <- function(obj, threshold=95, ptm_col="PhosphoRS..Best.Site.Prob
     
     if (peptide_ptm_scores[[1]] == "Too many isoforms"){
       log[["Too many isoforms"]] <- log[["Too many isoforms"]] + 1
-      log[["Filtered peptides"]] <- log[["Filtered peptides"]] + 1
+      log[["Peptides failing filter"]] <- log[["Peptides failing filter"]] + 1
       next()
     }
 
@@ -72,28 +72,28 @@ parsePTMScores <- function(obj, threshold=95, ptm_col="PhosphoRS..Best.Site.Prob
     
     # if any score is below threshold, disregard all putative ptm sites
     if (any(as.numeric(scores)<threshold)){
-      log[["Filtered sites"]] <- log[["Filtered sites"]] + length(peptide_ptm_scores)/2
-      log[["Filtered peptides"]] <- log[["Filtered peptides"]] + 1
+      log[["Sites failing filter"]] <- log[["Sites failing filter"]] + length(peptide_ptm_scores)/2
+      log[["Peptides failing filter"]] <- log[["Peptides failing filter"]] + 1
       if (any(as.numeric(scores)>=threshold)){
-        log[["Filtered multi peptides with sites above threshold"]] <- log[[
-          "Filtered multi peptides with sites above threshold"]] + 1  
+        log[["BiPTM/multiPTM peptides where some sites fail filter"]] <- log[[
+          "BiPTM/multiPTM peptides where some sites fail filter"]] + 1  
       }
       # if we want to handle this differently, can implement an alternative approach here
       # and move the rest of the code below into an else clause
       next()
     }
     
-    log[["Retained sites"]] <- log[["Retained sites"]] + length(peptide_ptm_scores)/2
-    log[["Retained peptides"]] <- log[["Retained peptides"]] + 1
+    log[["Sites passing filter"]] <- log[["Sites passing filter"]] + length(peptide_ptm_scores)/2
+    log[["Peptides passing filter"]] <- log[["Peptides passing filter"]] + 1
     
     if(length(scores)==1){
-      log[["monoPTM"]] <- log[["monoPTM"]] + 1
+      log[["monoPTM passing filter"]] <- log[["monoPTM passing filter"]] + 1
     }
     else if(length(scores)==2){
-      log[["biPTM"]] <- log[["biPTM"]] + 1
+      log[["biPTM passing filter"]] <- log[["biPTM passing filter"]] + 1
     }
     else{
-      log[["multiPTM"]] <- log[["multiPTM"]] + 1
+      log[["multiPTM passing filter"]] <- log[["multiPTM passing filter"]] + 1
     }
     
     ptms <- peptide_ptm_scores[seq(1, length(peptide_ptm_scores), 2)] # extract the PTMs info
