@@ -39,7 +39,7 @@ parsePTMScores <- function(obj, threshold=95, ptm_col="PhosphoRS..Best.Site.Prob
   
   # initiate vectors with empty string
   # where the PTM(s) pass the threshold, these will be updated
-  filtered_ptm_desc <- filtered_ptm_res <- filtered_ptm_pos <- filtered_ptm <- filtered_ptm_score <- rep("", nrow(df))
+  filtered_ptm_desc <- filtered_ptm_res <- filtered_ptm_pos <- filtered_ptm <- filtered_ptm_score <- rep("", nrow(obj))
   
   split_probabities <- strsplit(obj[[ptm_col]], split=prob_split)
   
