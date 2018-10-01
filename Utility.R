@@ -1,11 +1,13 @@
 # Utility functions useful across all analyses
+suppressMessages(library(gplots))
 suppressMessages(library(ggplot2))
 suppressMessages(library(reshape2))
-suppressMessages(library(ggplot2))
 suppressMessages(library(grid))
 suppressMessages(library(VennDiagram))
 suppressMessages(library(dplyr))
 suppressMessages(library(tidyr))
+suppressMessages(library(MSnbase))
+
 
 my_theme <- theme_bw() + theme(
   text=element_text(size=20,  family="serif"),
@@ -17,118 +19,120 @@ my_theme <- theme_bw() + theme(
 cbPalette <- c("#999999", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
 
 
-### parsePTMScores ###
-# Function to parse the PD PTM score probabilities column
-# and add columns for downstream filtering
-# obj = data.frame with PD output
-# threshold = score threshold
-# ptm_col = colname for PTM scores
-# prob_split = regex to split PTM probabilities
-# collapse_delimiter = delimiter between multiple values in output columns
-# verbose = print log of events
-
-# to do:
-# add logging?
-
-parsePTMScores <- function(obj, threshold=95, ptm_col="PhosphoRS..Best.Site.Probabilities",
-                           prob_split='; |: ', collapse_delimiter=";", verbose=TRUE){
-  
-  if(class(obj)!="data.frame"){
-    stop("first argument must be a data.frame")
-  }
-  
-  # initiate vectors with empty string
-  # where the PTM(s) pass the threshold, these will be updated
-  filtered_ptm_desc <- filtered_ptm_res <- filtered_ptm_pos <- filtered_ptm <- filtered_ptm_score <- rep("", nrow(obj))
-  
-  split_probabities <- strsplit(obj[[ptm_col]], split=prob_split)
-  
-  log <- list("Total peptides"=0, "Total detected PTMpeptides"=0,
-              "Peptides passing filter"=0, "Peptides failing filter"=0,
-              "BiPTM/multiPTM peptides where some sites fail filter"=0,
-              "Total detected sites"=0, "Sites passing filter"=0, "Sites failing filter"=0,
-              "monoPTM passing filter"=0, "biPTM passing filter"=0, "multiPTM passing filter"=0,
-              "Too many isoforms"=0)
-
-  
-  for (i in seq_along(split_probabities)){
-    
-    log[["Total peptides"]] <- log[["Total peptides"]] +1
-    
-    peptide_ptm_scores <- split_probabities[[i]]
-    if(is.na(peptide_ptm_scores[[1]])){ next() } # no PTM detected
-    
-    log[["Total detected PTMpeptides"]] <- log[["Total detected PTMpeptides"]] + 1
-    
-    if (peptide_ptm_scores[[1]] == "Too many isoforms"){
-      log[["Too many isoforms"]] <- log[["Too many isoforms"]] + 1
-      log[["Peptides failing filter"]] <- log[["Peptides failing filter"]] + 1
-      next()
-    }
-
-    log[["Total detected sites"]] <- log[["Total detected sites"]] + length(peptide_ptm_scores)/2
-    
-    scores <- peptide_ptm_scores[seq(2, length(peptide_ptm_scores), 2)]
-    
-    # if any score is below threshold, disregard all putative ptm sites
-    if (any(as.numeric(scores)<threshold)){
-      log[["Sites failing filter"]] <- log[["Sites failing filter"]] + length(peptide_ptm_scores)/2
-      log[["Peptides failing filter"]] <- log[["Peptides failing filter"]] + 1
-      if (any(as.numeric(scores)>=threshold)){
-        log[["BiPTM/multiPTM peptides where some sites fail filter"]] <- log[[
-          "BiPTM/multiPTM peptides where some sites fail filter"]] + 1  
-      }
-      # if we want to handle this differently, can implement an alternative approach here
-      # and move the rest of the code below into an else clause
-      next()
-    }
-    
-    log[["Sites passing filter"]] <- log[["Sites passing filter"]] + length(peptide_ptm_scores)/2
-    log[["Peptides passing filter"]] <- log[["Peptides passing filter"]] + 1
-    
-    if(length(scores)==1){
-      log[["monoPTM passing filter"]] <- log[["monoPTM passing filter"]] + 1
-    }
-    else if(length(scores)==2){
-      log[["biPTM passing filter"]] <- log[["biPTM passing filter"]] + 1
-    }
-    else{
-      log[["multiPTM passing filter"]] <- log[["multiPTM passing filter"]] + 1
-    }
-    
-    ptms <- peptide_ptm_scores[seq(1, length(peptide_ptm_scores), 2)] # extract the PTMs info
-    split_ptms <- unlist(strsplit(ptms, split =  '\\(|\\)')) # split to remove parantheses
-    modifications <- split_ptms[seq(2, length(split_ptms), 2)] # extract modifications, e.g "phospho"
-    positions <- split_ptms[seq(1, length(split_ptms), 2)] # extract the positions, e.g "S6"
-    residues <- substr(positions, 1, 1) # extract first element, e.g S
-    positions <- sub('.', '', positions) # remove first element and leave position, e.g 6
-    
-    # paste together the value, separated by option(collapse_delimiter) and update vectors which will become columns
-    filtered_ptm_desc[[i]] <- paste(peptide_ptm_scores, collapse=collapse_delimiter)
-    filtered_ptm_res[[i]] <- paste(residues, collapse=collapse_delimiter)
-    filtered_ptm_pos[[i]] <- paste(positions, collapse=collapse_delimiter)
-    filtered_ptm[[i]] <- paste(modifications, collapse=collapse_delimiter)
-    filtered_ptm_score[[i]] <- paste(scores, collapse=collapse_delimiter)
-    
-  }
-  
-  # add columns
-  obj['filtered_PTM_desc'] = filtered_ptm_desc
-  obj['filtered_res'] = filtered_ptm_res
-  obj['filtered_pos'] = filtered_ptm_pos
-  obj['filtered_ptm'] = filtered_ptm
-  obj['filtered_score'] = filtered_ptm_score
-  
-  if(verbose){
-    for(event in names(log)){
-      cat(sprintf("%s: %i\n", event, log[[event]]))
-    }
-  }
-  
+removeCrap <- function(obj, protein_col="Protein.Accessions"){
+  cat(sprintf("Input data: %s rows\n", nrow(obj)))
+  obj <- obj %>% filter(!grepl("cRAP", !!as.symbol(protein_col), ignore.case=FALSE))
+  cat(sprintf("Output data: %s rows\n", nrow(obj)))
   return(obj)
 }
 
+summariseMissing <- function(res){
+  cat("\ntallies for missing data (# samples with missing)")
+  print(table(rowSums(is.na(as.data.frame(exprs(res))))))
+}
 
+makeMSNSet <- function(obj, samples_inf){
+  # make dataframes for MSnset object
+  rownames(obj) <- seq(1, length(obj[,1]))
+  
+  meta_columns <- colnames(obj)
+  meta_columns <- meta_columns[-grep("Found.*", meta_columns)]
+  meta_columns <- meta_columns[-grep("Abundance.*", meta_columns)]
+  
+  abundance_columns <- colnames(obj)[grep('Abundance.F.*.Sample', colnames(obj))]
+  
+  exprsCsv <- obj[,abundance_columns]
+  renamed_abundance_columns <- sapply(strsplit(abundance_columns, "\\."), "[[", 3)
+  
+  colnames(exprsCsv) <- renamed_abundance_columns
+  
+  exprsCsv[exprsCsv==""] <- NA
+  
+  fdataCsv <- obj[,meta_columns]
+  
+  pdataCsv <- read.table(samples_inf, sep="\t", header=T, row.names = 1)
+  
+  res <- MSnSet(as.matrix(exprsCsv), fdataCsv, pdataCsv)
+  
+  summariseMissing(res)
+  
+  cat(sprintf("\n%s peptides do not have any quantification values\n\n", sum(rowSums(is.na(exprs(res)))==10)))
+  res <- res[rowSums(is.na(exprs(res)))!=10,] # exclude peptides without any quantification
+  return(res)
+}
+
+plotMissing <- function(obj, ...){
+  tmp_obj <- MSnbase:::impute(obj, "zero")
+  exprs(tmp_obj)[exprs(tmp_obj) != 0] <- 1
+  
+  missing <- exprs(tmp_obj)
+  missing <- missing[rowSums(missing==0)>0,] # identify features without missing values
+  cat(sprintf("Out of %s total features, %s (%s%%) have missing values\n",
+              length(rownames(exprs(tmp_obj))), length(rownames(missing)),
+              round(100*length(rownames(missing))/length(rownames(exprs(tmp_obj))),3)))
+  
+  if(length(rownames(missing))>0){
+    missing_twice <- missing[rowSums(missing==0)>1,]
+    cat(sprintf("And %s features have more than one missing value\n", length(rownames(missing_twice))))
+    
+    colnames(missing) <- pData(tmp_obj)$Sample_name
+    
+    heatmap.2(missing, col = c("lightgray", "black"),
+              scale = "none", dendrogram = "none",
+              trace = "none", keysize = 0.5, key = FALSE,Colv = F, labRow=F,
+              #RowSideColors = ifelse(fData(x)$randna, "orange", "brown"),
+              ...)
+  }
+}
+
+
+plotLabelQuant <- function(obj, log=F){
+  tmp_df <- data.frame(exprs(obj))
+  colnames(tmp_df) <- pData(obj)$Sample_name
+  tmp_df[tmp_df==""] <- NA
+  tmp_df <- melt(tmp_df)
+  tmp_df$value <- as.numeric(as.character(tmp_df$value))
+  
+  if(log){
+    tmp_df$value = log(tmp_df$value,2)  
+  }
+  
+  p <- ggplot(tmp_df) + my_theme
+  
+  p1 <- p + geom_boxplot(aes(variable, value)) +
+    theme(axis.text.x=element_text(angle=90, vjust=0.5, hjust=1)) +
+    ylab("Peptide intensity (log2) ") + xlab("") +
+    scale_y_continuous(breaks=seq(-20,20,2))
+  
+  print(p1)
+  
+  p2 <- p + geom_density(aes(value, col=variable)) +
+    xlab("Peptide intensity (log2) ") + ylab("Density")
+  
+  print(p2)
+  
+  return(list("p1"=p1, "p2"=p2))
+}
+
+myAggFunction <- function(x, FUN=sum){
+  if(sum(is.finite(x))==0){
+    return(NA)
+  }
+  else{
+    return(FUN(x[is.finite(x)]))
+  }
+}
+
+agg_to_peptides <- function(obj, outfile, gb=NULL){
+  
+  if(missing(gb)){
+    gb <- fData(obj)$Sequence
+  }
+    # we'll use our own aggregation function here to obtain the sum over all the modified peptides
+  pep_agg <- combineFeatures(obj, groupBy=gb, fun=myAggFunction)
+  pData(pep_agg) <- pData(obj)
+  return(pep_agg)
+}
 
 makeVennPlot <- function(set1, set2, set3,
                          set1_name="Identified proteins",
