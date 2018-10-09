@@ -1,5 +1,5 @@
-library(dplyr)
-library(tidyr)
+suppressMessages(library(dplyr))
+suppressMessages(library(tidyr))
 
 ### parsePTMScores ###
 # Function to parse the PD PTM score probabilities column
@@ -112,3 +112,5 @@ parsePTMScores <- function(obj, threshold=95, ptm_col="PhosphoRS..Best.Site.Prob
   
   return(obj)
 }
+
+

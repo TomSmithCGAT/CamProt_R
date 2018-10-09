@@ -1,9 +1,9 @@
-library(ggplot2)
-library(reshape2)
-library(goseq)
-library(Hmisc)
-library(mygene)
-library(data.table)
+suppressMessages(library(ggplot2))
+suppressMessages(library(reshape2))
+suppressMessages(library(goseq))
+suppressMessages(library(Hmisc))
+suppressMessages(library(mygene))
+suppressMessages(library(data.table))
 
 source("Utility.R")
 

@@ -1,7 +1,7 @@
 # These functions are designed to expand GO annotations obtained from e.g Uniprot in order to obtain *all* ancestor terms as well.
 # The rationale is that e.g tRNA binding proteins may not be annotated as RNA binding protiens which is obviously unintuitive!
 
-library(GO.db)
+suppressMessages(library(GO.db))
 ##################################################################################
 # Input:
 # ------

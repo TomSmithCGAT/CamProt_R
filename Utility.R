@@ -7,7 +7,7 @@ suppressMessages(library(VennDiagram))
 suppressMessages(library(dplyr))
 suppressMessages(library(tidyr))
 suppressMessages(library(MSnbase))
-
+suppressMessages(library(robustbase))
 
 my_theme <- theme_bw() + theme(
   text=element_text(size=20,  family="serif"),
@@ -132,6 +132,43 @@ agg_to_peptides <- function(obj, outfile, gb=NULL){
   pep_agg <- combineFeatures(obj, groupBy=gb, fun=myAggFunction)
   pData(pep_agg) <- pData(obj)
   return(pep_agg)
+}
+
+
+agg_to_protein <- function(obj, outfile, gb=NULL){
+  
+  if(missing(gb)){
+    gb <- fData(obj)$Master.Protein.Accessions
+  }
+  
+  # remove the "CV.Abundance" columns added in the last combineFeatures call. Otherwise, combineFeatures will throw an error
+  fData(obj) <- fData(obj)[,-grep("CV.*", colnames(fData(obj)))]
+  
+  # we'll use our own aggregation function here to obtain the median over all the peptides
+  pep_agg <- combineFeatures(obj, groupBy=gb, fun=function(x) myAggFunction(x, FUN=median))
+  pData(pep_agg) <- pData(obj)
+  return(pep_agg)
+}
+
+getMedians <- function(obj){
+  medians <- colMedians(exprs(obj), na.rm=TRUE)
+  return(medians)
+}
+
+logCenterNormalise <- function(obj, medians=NULL){
+  exprs(obj) <- log2(exprs(obj))
+  
+  if(missing(medians)){
+    medians <- getMedians(obj)
+  }
+  else{
+    observed_medians <- colMedians(exprs(obj), na.rm=TRUE)
+    medians = medians / (mean(medians)/mean(observed_medians))
+  }
+  
+  exprs(obj) <- t(t(exprs(obj))-medians)
+  
+  return(obj)
 }
 
 makeVennPlot <- function(set1, set2, set3,
