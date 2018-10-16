@@ -270,3 +270,17 @@ readListFromFile <- function(file){
   return(scan(file, what="", sep="\n"))
 }
 
+
+# Extract quantification info, with optional feature columns too
+extractQuantData <- function(obj, feature_columns=NULL){
+  
+  exprs_df <- data.frame(exprs(obj))
+  
+  if(!missing(feature_columns)){
+    colnames(exprs_df) <- pData(obj)$Sample_name
+    exprs_df <- cbind(fData(obj)[feature_columns], exprs_df)
+  }
+  
+  return(exprs_df)
+}
+
