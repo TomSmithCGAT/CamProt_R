@@ -284,3 +284,84 @@ extractQuantData <- function(obj, feature_columns=NULL){
   return(exprs_df)
 }
 
+
+four.venn <- function(a, b, c, d, ...){
+  
+  area1 = length(a)
+  area2 = length(b)
+  area3 = length(c)
+  area4 = length(d)
+  n12 = (intersect(a, b))
+  n13 = (intersect(a,c))
+  n14 = (intersect(a,d))
+  n23 = (intersect(b,c))
+  n24 = (intersect(b,d))
+  n34 = (intersect(c,d))
+  n123 = (intersect(n12, c))
+  n124 = intersect(n12, d)
+  n134 = intersect(n13, d)
+  n234 = intersect(n23, d)
+  n1234 = intersect(n123, d)
+  
+  draw.quad.venn(area1, area2, area3, area4, length(n12), length(n13), length(n14), 
+                      length(n23), length(n24), length(n34), length(n123), 
+                      length(n124), length(n134), length(n234), length(n1234), 
+                      fill = cbPalette[2:5], 
+                      alpha = rep(0.4, 4), 
+                      lty = "blank", 
+                      fontface = "bold",
+                      fontfamily = "sans", 
+                      cat.fontface = "bold",
+                      cat.default.pos = "outer",
+                      cat.fontfamily = "sans", ...)
+}
+
+singleLM <- function(df, dep_var="value", indep_var="stage"){
+  model <- paste0(dep_var, " ~ ", indep_var)
+  fit <- lm(formula=formula(model), data=df)
+  
+  p.value <- summary(fit)$coefficients[,4]
+  p.value <- p.value[2:length(p.value)]
+  #names(p.value) <- paste0("p.value_", names(p.value))
+  
+  coeffs <- coef(fit)
+  coeffs <- coeffs[2:length(coeffs)]
+  
+  tmp_lm_df <- data.frame(cbind(coeffs, p.value))
+  tmp_lm_df$name <- names(coeffs)
+  
+  return(tmp_lm_df)
+}
+
+plotP <- function(lm_df){
+  
+  p <- ggplot(lm_df, aes(p.value)) + geom_histogram(bins=100) + my_theme
+  print(p)
+}
+
+runLM <- function(df, dep_var, indep_var, abundance_df, protein_col="Var1", abundance_merge_col="uniprot_ac"){
+  
+  lm_df <- ddply(df, protein_col, function(x) singleLM(x, dep_var, indep_var))
+  
+  plotP(lm_df)
+  print(head(lm_df))
+  lm_df$BH <- p.adjust(lm_df$p.value, method="BH")
+  lm_df$sig <- lm_df$BH<0.01
+  lm_df$sig_up <- (lm_df$sig & lm_df$coeffs > 0)
+  lm_df$sig_dw <- (lm_df$sig & lm_df$coeffs < 0)
+  
+  print("Tallies for significant changes:")
+  print(table(lm_df$sig))
+  
+  print("Tallies for significant changes(unique proteins):")
+  print(table(unique(lm_df[[protein_col]]) %in% unique(lm_df[lm_df$sig==TRUE, protein_col])))
+  
+  means <- aggregate(df$value, by=list(df[[protein_col]]), FUN=mean)
+  colnames(means) <- c(protein_col, "mean_abundance")
+  
+  lm_df <- merge(lm_df, means, by=protein_col)
+  
+  lm_df <- merge(lm_df, abundance_df, by.x=protein_col, by.y=abundance_merge_col)
+  
+  return(lm_df)
+}

@@ -114,3 +114,66 @@ parsePTMScores <- function(obj, threshold=95, ptm_col="PhosphoRS..Best.Site.Prob
 }
 
 
+### combine_peptide_phospho_positions ###
+
+addPhosphoPositions <- function(obj){
+  
+  combine_peptide_phospho_positions <- function(peptide_start, filtered_pos){
+    # Given a string with start positions (peptide_start) and positions of phosphorylated AA with
+    # respect to peptide sequence (phospho_positions), return the phospho positions with respect to protein sequence
+    
+    if(filtered_pos==""){
+      return(NA)
+    }
+    return_string <- NULL
+    #print(peptide_start)
+    for(p_start in strsplit(peptide_start, split=";")[[1]]){
+      position_string <- NULL    
+      
+      for(phospho_p in strsplit(filtered_pos, split=";")[[1]]){
+        position_string[[phospho_p]] <- as.numeric(p_start) + as.numeric(phospho_p)
+        
+      }
+      return_string[[p_start]] <- paste0(position_string, collapse="|")
+    }
+    return(paste0(return_string, collapse=";"))
+  }
+  
+  phospho_positions <- strsplit(obj$Positions.in.Master.Proteins, split="; ")
+  
+  start_array <- rep("", length(phospho_positions))
+  protein_array <- rep("", length(phospho_positions))
+  
+  for(ix in seq_along(phospho_positions)){
+    phospho_position <- phospho_positions[[ix]]
+    start_values <- NULL
+    protein_values <- NULL
+    protein <- NA
+    for(site in phospho_position){
+      site_split <- strsplit(site, " ")[[1]]
+      if (length(site_split)==1){
+        start_values[[site]] <- gsub("\\[|\\]", "", strsplit(site_split[[1]], "-")[[1]][1])
+      }
+      
+      else if (length(site_split)==2){
+        protein <- site_split[[1]]
+        start_values[[site]] <- gsub("\\[|\\]", "", strsplit(site_split[[2]], "-")[[1]][1])
+      }
+      
+      else{
+        stop(sprintf("Unexpected input. Position should contain a maximum of two space-separated elements: %s", site))
+      }
+      protein_values[[site]] <- protein
+    }
+    start_array[[ix]] <- paste0(start_values, collapse=";")
+    protein_array[[ix]] <- paste0(protein_values, collapse=";")
+  }
+  
+  obj$peptide_start <- start_array
+  obj$phospho_position_protein  <- protein_array
+  
+  obj$phospho_position <- apply(
+    obj, MARGIN=1, function(x) combine_peptide_phospho_positions(x[["peptide_start"]], x[["filtered_pos"]]))
+  
+  return(obj)
+}
