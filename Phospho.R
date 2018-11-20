@@ -131,7 +131,7 @@ addPhosphoPositions <- function(obj){
       position_string <- NULL    
       
       for(phospho_p in strsplit(filtered_pos, split=";")[[1]]){
-        position_string[[phospho_p]] <- as.numeric(p_start) + as.numeric(phospho_p)
+        position_string[[phospho_p]] <- as.numeric(p_start) + as.numeric(phospho_p) -1
         
       }
       return_string[[p_start]] <- paste0(position_string, collapse="|")
@@ -141,8 +141,7 @@ addPhosphoPositions <- function(obj){
   
   phospho_positions <- strsplit(obj$Positions.in.Master.Proteins, split="; ")
   
-  start_array <- rep("", length(phospho_positions))
-  protein_array <- rep("", length(phospho_positions))
+  start_array <- protein_array <- protein_lengths <- rep("", length(phospho_positions))
   
   for(ix in seq_along(phospho_positions)){
     phospho_position <- phospho_positions[[ix]]
@@ -171,7 +170,7 @@ addPhosphoPositions <- function(obj){
   
   obj$peptide_start <- start_array
   obj$phospho_position_protein  <- protein_array
-  
+
   obj$phospho_position <- apply(
     obj, MARGIN=1, function(x) combine_peptide_phospho_positions(x[["peptide_start"]], x[["filtered_pos"]]))
   
