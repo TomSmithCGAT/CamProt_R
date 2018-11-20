@@ -365,3 +365,54 @@ runLM <- function(df, dep_var, indep_var, abundance_df, protein_col="Var1", abun
   
   return(lm_df)
 }
+
+# ------------------------
+# Function	: shortenTerm
+# ------------------------
+shortenTerm <- function(term, cut_at){
+  
+  if(is.na(term)){
+    return(NA)
+  }
+  if(nchar(term)>cut_at){
+    return(paste0(substr(term, 1, cut_at), " [..]"))
+  }
+  else{
+    return(term)
+  }
+}
+
+# ------------------------
+# Function	: shortenTerm
+# ------------------------
+add_newlines <- function(input_string, max_length=20,sep=" "){
+  if(is.na(input_string)){
+    return(input_string)
+  }
+  input_string <- gsub(",", "'", input_string)
+  
+  if (nchar(input_string)<=max_length){
+    return(input_string)
+  }
+  else{
+    components <- strsplit(input_string, sep)
+    if (any(sapply(components, FUN=function(x) nchar(x)>max_length))){
+      stop(sprintf("impossible to break down below max_length, require at least %i characters", max(sapply(components ,FUN=nchar))))
+    }
+    else{
+      output_string = ""
+      char_since_newline = 0
+      for (component in components[[1]]){
+        if(char_since_newline + nchar(component)<=max_length){
+          output_string <- paste0(output_string, sep, component)
+          char_since_newline <- char_since_newline + nchar(component)
+        }
+        else{
+          output_string <- paste0(output_string, "\n", component)
+          char_since_newline <- nchar(component)
+        }
+      }
+      return(substring(output_string, 2))
+    }
+  }
+}

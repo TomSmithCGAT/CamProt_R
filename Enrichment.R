@@ -78,21 +78,7 @@ myProtMapper <- function(ids,id.type="uniprot",out.fields=c("interpro.short_desc
   return(data.frame(ret.qm))
 }
 
-# ------------------------
-# Function	: shortenTerm
-# ------------------------
-shortenTerm <- function(term, cut_at){
 
-  if(is.na(term)){
-    return(NA)
-  }
-  if(nchar(term)>cut_at){
-    return(paste0(substr(term, 1, cut_at), " [..]"))
-  }
-  else{
-    return(term)
-  }
-}
 
 # ------------------------------------------------------------------------------------------------------------
 # Function	: myProtMapper 

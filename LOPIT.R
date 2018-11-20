@@ -72,14 +72,14 @@ PlotProteinProfiles <- function(res){
 # ------------------------------------------------------------------------------------------------------------
 
 PlotMarkerProfiles <- function(res, fcol="master_protein", keep_markers=c("CYTOSOL"), unknown=F, plot_all=T,
-                               individual_plots=F, foi=NULL, organelle_order=NULL){
+                               individual_plots=F, foi=NULL, organelle_order=NULL, alpha=0.25){
   
   
   exprs_df <- exprs(res)
   f_df <- fData(res)
   f_df$markers <- f_df[[fcol]]
   exprs_df <- melt(exprs_df)
-  exprs_df <- merge(exprs_df, f_df['markers'], by.x="Var1", by.y="row.names")
+  exprs_df <- merge(exprs_df, f_df, by.x="Var1", by.y="row.names")
   
   if(unknown){
     exprs_trim_df <- exprs_df[exprs_df$markers %in% c(keep_markers, "unknown"),]
@@ -108,7 +108,7 @@ PlotMarkerProfiles <- function(res, fcol="master_protein", keep_markers=c("CYTOS
         scale_alpha_manual(values=c(1, 0.01), guide=F)
     }
     else{
-      p <- p + geom_line(alpha=0.25)
+      p <- p + geom_line(alpha=alpha)
     }
     if(individual_plots){
       p <- p + facet_wrap(~Var1) + scale_colour_discrete(guide=F) +
@@ -130,7 +130,7 @@ PlotMarkerProfiles <- function(res, fcol="master_protein", keep_markers=c("CYTOS
   if(!missing(foi)){
     exprs_df <- data.frame(exprs_df)
     features_df <- exprs_df[exprs_df$Var1 %in% foi,]
-    p <- p + geom_line(data=features_df, aes(Var2, value), colour="black", alpha=0.3)
+    p <- p + geom_line(data=features_df, aes(Var2, value), colour="black", alpha=alpha)
     
   }
   
@@ -291,11 +291,11 @@ plotMinDistance <- function(qsep1, qsep2, order_organelle=NULL){
 # ------------------------------------------------------------------------------------------------------------
 # Function	: plotPCA
 # ------------------------------------------------------------------------------------------------------------
-makePCA_proj <- function(res, fcol="markers", dims=c(1,2)){
-  PCA_matrix <- plot2D(res, fcol=fcol, plot=FALSE, dims=dims)
+makePCA_proj <- function(res, fcol="markers", dims=c(1,2), ...){
+  PCA_matrix <- plot2D(res, fcol=fcol, plot=FALSE, dims=dims, ...)
   axes <- colnames(PCA_matrix)
   colnames(PCA_matrix) <- c("X", "Y")
-  PCA_df <- merge(data.frame(PCA_matrix), data.frame(fData(res)), by="row.names")
+  PCA_df <- PCA_matrix %>% merge(data.frame(fData(res)), by="row.names")
   PCA_df$markers <- PCA_df[[fcol]]
   PCA_df$unknown <- PCA_df$markers=="unknown"
   PCA_df$markers[PCA_df$unknown] <- NA
@@ -306,7 +306,7 @@ makePCA_proj <- function(res, fcol="markers", dims=c(1,2)){
 LOPITPCAPlotter <- function(PCA_df, axes, xlims=FALSE, ylims=FALSE, foi=FALSE, add_foi_names=FALSE,
                     just_markers=FALSE, m_colours=FALSE, re_order_markers=FALSE, marker_levels=NULL,
                     title=FALSE, fcol=FALSE, point_size=FALSE, foi_size=1, foi_alpha=1, foi_shape=8,
-                    foi_colour="black", foi_fill="black", return_proj=FALSE){
+                    foi_colour="black", foi_fill="black", return_proj=FALSE, cex=1, add_density=FALSE){
   
   if(!missing(fcol)){
     # remake marker column
@@ -326,12 +326,12 @@ LOPITPCAPlotter <- function(PCA_df, axes, xlims=FALSE, ylims=FALSE, foi=FALSE, a
     m_colours <- getStockcol()[c(1:5,12,7:11,13:20)]
   }
   p <- ggplot(PCA_df) +
-    geom_point(aes(X, Y, colour=markers, alpha=unknown)) +
+    geom_point(aes(X, Y, colour=markers, alpha=unknown), size=cex) +
     scale_alpha_manual(values=c(0.5,0.1), guide=F) +
     #scale_colour_manual(values=rep("#E41A1C70", 12), na.value="grey95") +
     scale_colour_manual(values=m_colours, na.value="grey80", name="") +
     my_theme + xlab(axes[1]) + ylab(axes[2])
-    
+
   if(!missing(point_size)){
     p <- p + aes_string(size=point_size) +
       scale_size_area(guide=F, max_size=2)
@@ -350,12 +350,16 @@ LOPITPCAPlotter <- function(PCA_df, axes, xlims=FALSE, ylims=FALSE, foi=FALSE, a
     p <- p + ylim(ylims)
   }
   
-  plots[['p']] <- p + guides(colour = guide_legend(override.aes = list(alpha = 1)))
+  if(add_density){
+    p <- p + geom_density_2d(aes(x=X, y=Y), colour="black", alpha=0.5)
+  }
+  
+  plots[['p']] <- p + guides(colour = guide_legend(override.aes = list(alpha = 1, size=2)))
   
   if(just_markers){
     PCA_df2 <-PCA_df[!is.na(PCA_df$markers),]
     p2  <- p %+% PCA_df2
-    plots[['p2']] <- p2 + guides(colour = guide_legend(override.aes = list(alpha = 1)))
+    plots[['p2']] <- p2 + guides(colour = guide_legend(override.aes = list(alpha = 1, size=2)))
     
   }
   
@@ -372,7 +376,7 @@ LOPITPCAPlotter <- function(PCA_df, axes, xlims=FALSE, ylims=FALSE, foi=FALSE, a
       p <- p + geom_text(data=features_df, aes(X, Y+0.25, label=Row.names))
     }
     
-    plots[['p_foi']] <- p + guides(colour = guide_legend(override.aes = list(alpha = 1)))
+    plots[['p_foi']] <- p + guides(colour = guide_legend(override.aes = list(alpha = 1, size=2)))
     
     if(just_markers){
       features_df2 <- PCA_df2[PCA_df2[['Row.names']] %in% foi,]
@@ -382,7 +386,7 @@ LOPITPCAPlotter <- function(PCA_df, axes, xlims=FALSE, ylims=FALSE, foi=FALSE, a
         p2 <- p2 + aes_string(size=point_size)
       }
       
-      plots[['p2_foi']] <- p2 + guides(colour = guide_legend(override.aes = list(alpha = 1)))
+      plots[['p2_foi']] <- p2 + guides(colour = guide_legend(override.aes = list(alpha = 1, size=2)))
     }
   }
   
@@ -589,8 +593,8 @@ catLOPITs <- function(lopit_a, lopit_b, fdata_merge="master_protein"){
 }
 
 
-getPCALoadings <- function(obj){
-  .pca <- prcomp(exprs(obj))
+getPCALoadings <- function(obj, ...){
+  .pca <- prcomp(exprs(obj), ...)
   loadings <- .pca$rotation
   return(loadings)
 }  
