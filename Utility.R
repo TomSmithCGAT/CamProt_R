@@ -123,7 +123,7 @@ myAggFunction <- function(x, FUN=sum){
   }
 }
 
-agg_to_peptides <- function(obj, outfile, gb=NULL){
+agg_to_peptides <- function(obj, gb=NULL){
   
   if(missing(gb)){
     gb <- fData(obj)$Sequence
@@ -135,10 +135,10 @@ agg_to_peptides <- function(obj, outfile, gb=NULL){
 }
 
 
-agg_to_protein <- function(obj, outfile, gb=NULL){
+agg_to_protein <- function(obj, protein_col="Master.Protein.Accessions", gb=NULL){
   
   if(missing(gb)){
-    gb <- fData(obj)$Master.Protein.Accessions
+    gb <- fData(obj)[[protein_col]]
   }
   
   # remove the "CV.Abundance" columns added in the last combineFeatures call. Otherwise, combineFeatures will throw an error

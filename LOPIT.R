@@ -3,6 +3,8 @@
 suppressMessages(library("pRoloc"))
 suppressMessages(library("reshape2"))
 suppressMessages(library("ggplot2"))
+suppressMessages(library("dplyr"))
+suppressMessages(library("tidyr"))
 suppressMessages(require(gridExtra))
 
 setStockcol(NULL) ## reset first

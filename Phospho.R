@@ -176,3 +176,71 @@ addPhosphoPositions <- function(obj){
   
   return(obj)
 }
+
+### Get the Sequence around the phosphosite. Will return NA if peptide maps to multiple proteins or has multiple phosphorylations ###
+getSequence <-function(proteome, Master.Protein.Accessions, phospho_position, pad=7){
+  
+  phospho_position <- suppressWarnings(as.numeric(as.character(phospho_position)))
+  
+  if(is.na(phospho_position)){
+    return(NA)
+  }
+  
+  if(grepl("; ", phospho_position)){
+    return(NA)
+  }
+
+  if(!Master.Protein.Accessions %in% names(proteome)){
+    return(NA)
+  }
+  
+  protein_length <- length(proteome[[Master.Protein.Accessions]])
+  
+  if(phospho_position>protein_length){
+    warning(sprintf("PTM positions is outside protein sequence! Returning NA. %s: [-%s], PTM: %s",
+                    Master.Protein.Accessions, protein_length, phospho_position))
+    return(NA)
+  }
+  
+  start_pad <- end_pad <- ""
+  
+  start <- phospho_position - pad
+  if(start < 0){
+    start_pad <- paste0(rep("_", start*-1), collapse="")
+    start <- 0
+  }
+  
+  
+  
+  end <- phospho_position + pad
+  if (end > protein_length){
+    end_pad <- paste0(rep("_", (end - protein_length)), collapse="")
+    end <- protein_length
+  }
+  
+  mod_position <- pad + 1
+  
+  sequence <- as.character(proteome[[Master.Protein.Accessions]][start:end])
+  sequence <- paste0(start_pad, sequence, end_pad)
+  
+  sequence <- paste(base::substr(sequence, 1, pad),
+                    tolower(base::substr(sequence, pad+1, pad+1)),
+                    base::substr(sequence, pad+2, pad+pad+1), sep="")
+  
+  return(sequence)
+  
+}
+
+addSiteSequence <- function(obj, proteome_fasta){
+  require("GenomicRanges")
+  require("Biostrings")
+  
+  proteome <- readAAStringSet(proteome_fasta)
+  names(proteome) <- sapply(base::strsplit(names(proteome), split="\\|") , "[[", 2)
+  
+  obj <- obj %>% rowwise() %>%
+    mutate(site_seq = getSequence(proteome, Master.Protein.Accessions, phospho_position)) %>%
+    data.frame()
+  
+  return(obj)
+}
