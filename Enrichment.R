@@ -107,10 +107,10 @@ cleanQM <- function(qm){
 # ------------------------------------------------------------------------------------------------------------
 # 15.9.17 Added 'term.col' as parameter as in Interpro enrichment, there is no term, just 'category'
 
-plotGOTerms <- function(GO_df, len_foreground, len_background,
+plotGOTerms <- function(GO_df, len_foreground=NULL, len_background=NULL,
                         BH_filter=0.01, enrichment_filter=2, numObs_filter=50,
                         switch_axes=F, plot_top=10, term.col="term", cut_at=30,
-                        order_by_enrichment=T){
+                        order_by_enrichment=T, enrichment_col=NULL){
   
 
   GO_df <- GO_df %>% filter(!is.na(GO_df$term))
@@ -120,9 +120,18 @@ plotGOTerms <- function(GO_df, len_foreground, len_background,
   
   GO_df$BH <-  p.adjust(GO_df$over_represented_pvalue, method="BH")
   GO_df$BH[GO_df$BH==0] <- 1E-16
-  GO_df$enrichment <- log(((GO_df$numDEInCat/GO_df$numInCat) / (len_foreground/len_background)),2)
   
+  if(missing(enrichment_col)){
+    if(missing(len_foreground) | missing(len_background)){
+      stop("need to provide lengths of foregound and background")
+    }
+    GO_df$enrichment <- log(((GO_df$numDEInCat/GO_df$numInCat) / (len_foreground/len_background)),2)
+  }
+  else{
+    GO_df$enrichment <- GO_df[[enrichment_col]]
+  }
   
+  print(head(GO_df))
   
   GO_filtered_df <- GO_df[GO_df$BH < BH_filter,]
   GO_filtered_df <- GO_filtered_df[GO_filtered_df$enrichment > enrichment_filter,]
