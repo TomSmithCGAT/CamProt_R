@@ -267,6 +267,46 @@ plotInterPro <- function(GO_df, len_foreground, len_background,
 }
 
 
+plotKEGGterms <- function(kegg_over_rep_obj, kegg_terms=NULL, facet_by=NULL, BH_filter=0.1){
+  
+  kegg_over_rep_obj$short_cat <- sapply(strsplit(kegg_over_rep_obj$category, " - Homo sapiens"), "[[", 1)
+  
+  if(missing(kegg_terms)){
+    tmp_df <- kegg_over_rep_obj[kegg_over_rep_obj$BH<BH_filter,]  
+  } else{
+    tmp_df <- kegg_over_rep_obj[kegg_over_rep_obj$category %in% kegg_terms,]  
+    print(head(tmp_df))
+  }
+  
+  tmp_df <- tmp_df[order(tmp_df$adj_over_rep),]
+  tmp_df$short_cat <- factor(tmp_df$short_cat, levels=unique(tmp_df$short_cat))
+  
+  if(!missing(facet_by)){
+    tmp_df$facet = tmp_df[[facet_by]]
+  }
+  
+  p <- ggplot(tmp_df, aes(short_cat, adj_over_rep, fill=-log10(BH))) +
+    geom_bar(stat="identity") +
+    my_theme +
+    theme() +
+    coord_flip() +
+    scale_fill_continuous(name="-log10 BH-adjusted p-value",
+                          guide = guide_colorbar(title.position="top"),
+                          high=cbPalette[3], low="grey30") +
+    theme(text=element_text(size=15),
+          legend.position="top",
+          aspect.ratio=1.5) +
+    ylab("Log2-fold Over-representation") +
+    xlab("")
+  
+  if(!missing(facet_by)){
+    p <- p + facet_grid(facet~., scales="free")
+  }
+  
+  print(p)
+  return(p)
+}
+
 
 makePWF <- function(df, sig_col, bias_col, identifier_col){
   bias <- df[[bias_col]]
