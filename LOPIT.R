@@ -141,6 +141,45 @@ PlotMarkerProfiles <- function(res, fcol="master_protein", keep_markers=c("CYTOS
   return(p)
 }
 
+PlotMarkerHeatmap <- function(res, m_col="markers", organelle_order=NULL){
+  
+  exprs_df <- exprs(res)
+  f_df <- fData(res)
+  f_df$markers <- f_df[[m_col]]
+  exprs_df <- exprs_df %>% fitler(markers!="unknown")
+  long_exprs_df <- melt(exprs_df)
+  colnames(long_exprs_df) <- c("feature", "fraction", "intensity")
+  long_exprs_df <- merge(long_exprs_df, f_df, by.x="feature", by.y="row.names")
+  long_exprs_df <- long_exprs_df %>% group_by(markers, fraction) %>% summarise(intensity=mean(intensity))
+  
+  if(missing(organelle_order)){
+    
+    average_profile_matrix <- exprs_df %>% spread(key=Var2, value=intensity) %>% data.frame()
+    rownames(average_profile_matrix) <- average_profile_matrix$markers
+    average_profile_matrix <- average_profile_matrix %>% dplyr::select(-markers)
+    
+    clust <- hclust(dist(as.matrix(average_profile_matrix)))
+    plot(clust)
+    my_order <- rownames(average_profile_matrix)[clust$order]
+    
+    exprs_df$markers <- factor(exprs_df$markers, my_order)
+  }
+  
+  else{
+    exprs_df$markers <- factor(exprs_df$markers, organelle_order)
+  }
+  
+  p <- ggplot(exprs_df, aes(Var2, markers, fill=intensity)) +
+    geom_tile() +
+    scale_fill_continuous(low="white", high=cbPalette[3], limits=c(0,NA), name="Normalised\nabundance") +
+    my_theme +
+    xlab("Fraction") +
+    ylab("") +
+    theme(axis.text.x=element_text(size=12, angle=45, vjust=1, hjust=1), axis.text.y=element_text(size=15))
+  
+  return(p)
+  
+}
 # ------------------------------------------------------------------------------------------------------------
 # Function	: makeQSepDistance
 # ------------------------------------------------------------------------------------------------------------
@@ -179,7 +218,8 @@ makeQSepDistancePlot <- function(qsep_df){
 # Function	: makeQSepDistancePlot 
 # ------------------------------------------------------------------------------------------------------------
 
-plotCompareDistances <- function(qsep_df1, qsep_df2, exp1="All", exp2="TMT2", qsep_df3=F, exp3=F,
+plotCompareDistances <- function(qsep_df1, qsep_df2, exp1="All", exp2="TMT2",
+                                 qsep_df3=F, exp3=F, qsep_df4=F, exp4=F,
                                  membrane_organelles=FALSE, facet_out=F, plot_den=F, organelle_order=NULL, remove=F){
   
   if(membrane_organelles==FALSE){
@@ -193,6 +233,11 @@ plotCompareDistances <- function(qsep_df1, qsep_df2, exp1="All", exp2="TMT2", qs
   if(!qsep_df3==FALSE){
     qsep_df3$samples <- exp3
     qsep_cat_df <- rbind(qsep_cat_df, qsep_df3)
+  }
+  
+  if(!qsep_df4==FALSE){
+    qsep_df4$samples <- exp4
+    qsep_cat_df <- rbind(qsep_cat_df, qsep_df4)
   }
   
   if(!missing(organelle_order)){
@@ -604,7 +649,7 @@ getPCALoadings <- function(obj, ...){
 plotLoadings <- function(loadings){
   
   p <- melt(loadings) %>%
-    ggplot(aes(Var1, value)) +
+    ggplot(aes(factor(Var1, levels=unique(Var1)), value)) +
     geom_bar(stat="identity") +
     facet_wrap(~Var2) +
     my_theme +
@@ -612,4 +657,209 @@ plotLoadings <- function(loadings){
   
   return(p)
   
+}
+
+##' The function plots marker consensus profiles obtained from mrkConsProfile
+##'
+##' @title Plot marker consenses profiles.
+##' @param object A \code{matrix} containing marker consensus profiles as output
+##'   from \code{\link{mrkConsProfiles}}.
+##' @param order Order for markers (Optional).
+##' @param plot A \code{logical} defining whether the heatmap should be plotted.
+##'   Default is \code{TRUE}.
+##' @return Invisibly returns \code{\link[ggplot2]{ggplot}} object.
+##' @author Tom Smith
+##' @examples
+##' library("pRolocdata")
+##' data(E14TG2aS1)
+##' hc <- mrkHClust(E14TG2aS1, plot=FALSE)
+##' mm <- getMarkerClasses(E14TG2aS1)
+##' m_order <- levels(factor(mm))[order.dendrogram(hc)]
+##' fmat <- mrkConsProfiles(E14TG2aS1)
+##' plotConsProfiles(fmat, order=m_order)
+plotConsProfiles <- function(object, order=NULL, plot=TRUE){
+  
+  fmatlong <- cbind(expand.grid("feature" = rownames(object),
+                                "sample" = colnames(object),
+                                stringsAsFactors=FALSE),
+                    "intensity" = as.vector(object))
+  
+  if (!is.null(order))
+    fmatlong$feature <- factor(fmatlong$feature, order)
+  
+  fmatlong$sample <- factor(fmatlong$sample, colnames(object))
+  
+  p <- ggplot(fmatlong, aes(sample, feature, fill = intensity)) +
+    geom_tile() +
+    scale_fill_continuous(low="white", high="#56B4E9", limits=c(0,NA), name="Intensity") +
+    theme_bw() +
+    xlab("") +
+    ylab("") +
+    theme(panel.grid=element_blank(),
+          panel.border=element_blank(),
+          axis.line = element_line(),
+          axis.ticks=element_blank(),
+          axis.text.x=element_text(angle=45, vjust=1, hjust=1),
+          aspect.ratio=1) +
+    scale_x_discrete(expand=c(0,0)) +
+    scale_y_discrete(expand=c(0,0))
+  
+  if (plot)
+    print(p)
+  
+  invisible(p)
+}
+
+plotConsProfileAll <- function(obj, fcol="markers", label_all_x=FALSE, foi=NULL, foi_name=NULL){
+  
+  if(!is.null(foi)){
+    if(is.null(foi_name)){
+      stop("need to provide foi_name")
+    }
+    fData(obj)[rownames(obj) %in% foi, fcol] <- foi_name
+    fData(obj)[[fcol]] <- factor(fData(obj)[[fcol]])
+  }
+  
+  x <- markerMSnSet(obj, fcol = fcol)
+  fmat_all <- exprs(x)
+  
+  order <- NULL
+  hc <- mrkHClust(obj, fcol, plot=FALSE)
+  mm <- getMarkerClasses(x, fcol)
+  m_order <- levels(factor(mm))[order.dendrogram(hc)]
+  
+  for (mc in m_order){
+    fmat <- exprs(x[fData(x)[[fcol]]==mc,])
+    if(nrow(fmat)>1){
+      #umm <- levels(factor(rownames(fmat)))
+      x.dist <- dist(fmat)
+      hc <- hclust(x.dist)
+      #hc <- hclust(as.dist(1-abs(cor(t(fmat)))))
+      hc <- as.dendrogram(hc)
+      order <- append(order, rownames(fmat)[order.dendrogram(hc)])
+    }
+    else{
+      order <- append(order, rownames(fmat))
+    }
+  }
+  
+  fmatlong <- cbind(expand.grid("feature" = rownames(fmat_all),
+                                "sample" = colnames(fmat_all),
+                                stringsAsFactors=FALSE),
+                    "intensity" = as.vector(fmat_all))
+  mm <- getMarkers(x, fcol, verbose=FALSE)
+  fmatlong$marker_class <- mm[match(fmatlong$feature, names(mm))]
+  fmatlong$marker_class <- factor(fmatlong$marker_class, levels=rev(m_order))
+  fmatlong$feature <- factor(fmatlong$feature, levels=order)
+  fmatlong$sample <- factor(fmatlong$sample, colnames(fmat))
+  
+  if(label_all_x){
+    labels <- as.character(unique(fmatlong$sample))
+    }
+  else{
+    labels <- as.character(unique(fmatlong$sample)[seq(0, length(unique(fmatlong$sample)), by=2)])
+  }
+  
+  p <- ggplot(fmatlong, aes(sample, feature, fill = intensity)) +
+    geom_tile() +
+    scale_fill_continuous(low="white", high="#56B4E9", limits=c(0,NA), name="Intensity") +
+    theme_bw() +
+    xlab("") +
+    ylab("") +
+    theme(panel.grid=element_blank(),
+          panel.border=element_rect(colour="grey70"),
+          axis.line.x = element_line(),
+          axis.ticks=element_blank(),
+          axis.text.x=element_text(angle=45, vjust=1, hjust=1),
+          axis.text.y=element_blank(),
+          strip.text.y=element_text(size=10, angle=180, hjust=1),
+          strip.background=element_blank(),
+          panel.spacing = unit(0, "lines"),
+          aspect.ratio=0.1) +
+    scale_x_discrete(expand=c(0,0), breaks=labels) +
+    scale_y_discrete(expand=c(0,0)) +
+    facet_grid(marker_class~., scales="free", switch="y")
+  
+  return(p)
+  
+}
+
+
+
+getPhenoMarkers <- function(obj, fcol){
+  m <- getMarkers(obj, fcol, verbose=FALSE)
+  pm <- m[grep("Phenotype ", m)]
+  pm <- table(pm)
+  invisible(pm)
+}
+
+getPhenoConvergence <- function(obj){
+  last_n_pc <- 0
+  last_pm <- NULL
+  rows <- NULL
+  for (iteration in fvarLabels(obj)[grep(".pd", fvarLabels(obj))]){
+    pm <- getPhenoMarkers(obj, iteration)
+    total_pm <- sum(pm) 
+    n_pc <- length(pm)
+
+    if (n_pc == last_n_pc){
+      distance <- sqrt(sum((as.matrix(pm)-as.matrix(last_pm))^2))
+    }
+    else{
+      distance <- NA
+    }
+    
+    if(iteration==".pd"){
+      iteration_n <- "final"
+    }
+    else{
+      iteration_n <- gsub(".pd", "", iteration)
+    }
+    rows[[iteration]] <- c(iteration_n, n_pc, total_pm, distance)
+    
+    last_pm <- pm
+    last_n_pc <- n_pc
+  }
+  
+  pheno_convergence <- data.frame(do.call("rbind", rows), stringsAsFactors=FALSE)
+  colnames(pheno_convergence) <- c("iteration", "phenotypes", "proteins_in_phenotypes", "distance")
+  pheno_convergence <- pheno_convergence %>% mutate_all(as.numeric)
+  
+  invisible(pheno_convergence)
+}
+
+
+plotPhenoConvergence <- function(obj){
+  p <- ggplot(obj, aes(iteration, phenotypes)) + geom_point() +
+    my_theme
+  
+  p2 <- p + aes(y=proteins_in_phenotypes)
+  
+  p3 <- p + aes(y=distance)
+  
+  invisible(list("p1"=p, "p2"=p2, "p3"=p3))
+}
+
+plotTempPhenoDisco <- function(infile){
+  load(infile)
+  top_iteration <- rev(fvarLabels(object)[grep(".pd", fvarLabels(object))])[1]
+  pheno_convergence <- getPhenoConvergence(object)
+  pheno_convergence_plots <- plotPhenoConvergence(pheno_convergence)
+  print(pheno_convergence_plots)
+  
+  fData(object)$.pd_cleaned <- fData(object)[[top_iteration]]
+  fData(object)$.pd_cleaned[!grepl("Phenotype|GOLGI", fData(object)[[top_iteration]])] <- "unknown"
+  print(plotPCA(prot_res_imputed_w_m, "markers"))
+  print(plotPCA(object, ".pd_cleaned"))
+  pca_plot <- plotPCA(object, top_iteration)
+  print(pca_plot)
+
+  print(plotPCA(prot_res_imputed_w_m, "markers", dims=c(3,4)))
+  print(plotPCA(object, ".pd_cleaned", dims=c(3,4)))
+  
+  cons_plot <- plotConsProfileAll(object, top_iteration)
+  print(cons_plot)
+  
+  invisible(list("convergence"=pheno_convergence_plots, "pca_plot"=pca_plot, "cons_plot"=cons_plot,
+                 "object"=object, "top_iteration"=top_iteration))
 }

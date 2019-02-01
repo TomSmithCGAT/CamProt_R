@@ -31,7 +31,7 @@ summariseMissing <- function(res){
   print(table(rowSums(is.na(as.data.frame(exprs(res))))))
 }
 
-makeMSNSet <- function(obj, samples_inf){
+makeMSNSet <- function(obj, samples_inf, ab_col_ix=3){
   # make dataframes for MSnset object
   rownames(obj) <- seq(1, length(obj[,1]))
   
@@ -42,7 +42,7 @@ makeMSNSet <- function(obj, samples_inf){
   abundance_columns <- colnames(obj)[grep('Abundance.F.*.Sample', colnames(obj))]
   
   exprsCsv <- obj[,abundance_columns]
-  renamed_abundance_columns <- sapply(strsplit(abundance_columns, "\\."), "[[", 3)
+  renamed_abundance_columns <- sapply(strsplit(abundance_columns, "\\."), "[[", ab_col_ix)
   
   colnames(exprsCsv) <- renamed_abundance_columns
   
@@ -50,14 +50,14 @@ makeMSNSet <- function(obj, samples_inf){
   
   fdataCsv <- obj[,meta_columns]
   
-  pdataCsv <- read.table(samples_inf, sep="\t", header=T, row.names = 1)
+  pdataCsv <- read.table(samples_inf, sep="\t", header=T, row.names = 1, colClasses="character")
   
   res <- MSnSet(as.matrix(exprsCsv), fdataCsv, pdataCsv)
   
   summariseMissing(res)
   
-  cat(sprintf("\n%s peptides do not have any quantification values\n\n", sum(rowSums(is.na(exprs(res)))==10)))
-  res <- res[rowSums(is.na(exprs(res)))!=10,] # exclude peptides without any quantification
+  cat(sprintf("\n%s peptides do not have any quantification values\n\n", sum(rowSums(is.na(exprs(res)))==ncol(exprs(res)))))
+  res <- res[rowSums(is.na(exprs(res)))!=ncol(exprs(res)),] # exclude peptides without any quantification
   return(res)
 }
 
@@ -154,6 +154,23 @@ getMedians <- function(obj){
   medians <- colMedians(exprs(obj), na.rm=TRUE)
   return(medians)
 }
+
+centerNormalise <- function(obj, medians=NULL){
+
+  if(missing(medians)){
+    medians <- getMedians(obj)
+    medians <- medians/mean(medians)
+  }
+  else{
+    observed_medians <- colMedians(exprs(obj), na.rm=TRUE)
+    medians = medians / (mean(medians)/mean(observed_medians))
+  }
+  
+  exprs(obj) <- t(t(exprs(obj))/medians)
+  
+  return(obj)
+}
+
 
 logCenterNormalise <- function(obj, medians=NULL){
   exprs(obj) <- log2(exprs(obj))

@@ -16,7 +16,7 @@ suppressMessages(library(gridExtra))
 #    silac = input is from a SILAC experiment
 # Output  	: A dataframe with peptides associated to a unique master.protein, which is not cRAP or cRAP-associated. 
 # ----------------------------------------------------------------------------------------------------------------------
-parse_peptides <- function(infile, silac=FALSE, TMT=FALSE){
+parse_peptides <- function(infile, unique_master=TRUE, silac=FALSE, TMT=FALSE){
   
   print_n_pep <- function(peptide_df, message){
     cat(sprintf("%s\t%s\n", length(rownames(peptide_df)), message))
@@ -38,8 +38,10 @@ parse_peptides <- function(infile, silac=FALSE, TMT=FALSE){
   peptide_df <- peptide_df[peptide_df$master_protein!="",]
   print_summaries(peptide_df, "Excluding peptides without a master protein")
   
-  peptide_df <- peptide_df[peptide_df$unique==1,]
-  print_summaries(peptide_df, "Excluding peptides without a unique master protein")
+  if(unique_master){
+    peptide_df <- peptide_df[peptide_df$unique==1,]
+    print_summaries(peptide_df, "Excluding peptides without a unique master protein")
+  }
   
   peptide_df <- peptide_df[peptide_df$crap_protein==0,]
   print_summaries(peptide_df, "Excluding peptides matching a cRAP protein")
