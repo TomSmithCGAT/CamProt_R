@@ -6,14 +6,16 @@ suppressMessages(library(GO.db))
 # Input:
 # ------
 # go_df: a data.frame with all initial GO terms for all proteins,
-#        with columns==["UNIPROTKB", "GO.ID"]
+#        with columns==[($$option$$:feature_col), "GO.ID"]
+# feature_col: the name of the column with the features, e.g UNIPROTKB
+# go_col: the name of the column with the GO ids, e.g "GO.ID"
 #
 # Return:
 # --------
 # Data.frame: containing all ancestors for all proteins
 #             plus term decriptions and ontologies
 ##################################################################################
-getAllGOTerms <- function(go_df){
+getAllGOTerms <- function(go_df, feature_col="UNIPROTKB", go_col="GO.ID", return_early_debug=FALSE){
   
     ##################################################################################
     # Input:
@@ -91,7 +93,7 @@ getAllGOTerms <- function(go_df){
     ##################################################################################
     ExpandTerms <- function(go_df, go2Ancester){
       
-      observed_go_ids <- go_df %>% pull("GO.ID") %>% unique() # unique() shouldn't be req. but does not harm
+      observed_go_ids <- go_df %>% pull(go_col) %>% unique() # unique() shouldn't be req. but does not harm
       unprocessed_ids <- observed_go_ids  
       all_ancestors <- observed_go_ids
 
@@ -106,8 +108,10 @@ getAllGOTerms <- function(go_df){
       return(data.frame("GOID"=all_ancestors))
     }
     
+  print(head(go_df, 2))
+  print(head(go_df[[go_col]], 2))
   
-  all_observed_go <- unique(go_df$GO.ID)
+  all_observed_go <- unique(go_df[[go_col]])
   all_observed_go <- all_observed_go[!is.na(all_observed_go)]
   
   ontologies <- AnnotationDbi::select(GO.db, all_observed_go, columns = c('ONTOLOGY'), keytype='GOID')
@@ -115,8 +119,13 @@ getAllGOTerms <- function(go_df){
   
   go2Ancester <- getAllMappings(all_observed_go, ontologies)
   
-  print("Expanding GO terms to include all ancestors for all proteins")
-  full_go_df <- go_df %>% filter(!is.na(GO.ID)) %>% group_by(UNIPROTKB) %>% do(ExpandTerms(., go2Ancester))
+  
+  if(return_early_debug){
+    return(list("go_df"=go_df, "go2Ancester"=go2Ancester))
+  }
+  
+  print("Expanding GO terms to include all ancestors for all entries")
+  full_go_df <- go_df %>% filter_(paste0("!is.na(", go_col, ")")) %>% group_by_(feature_col) %>% do(ExpandTerms(., go2Ancester))
   
   
   full_go_details <- AnnotationDbi::select(GO.db, as.character(unique(full_go_df$GOID)),
@@ -124,8 +133,8 @@ getAllGOTerms <- function(go_df){
   
   full_go_df <- merge(full_go_df, full_go_details, by="GOID", all.x=TRUE)
   
-  full_go_df <- full_go_df[,c('UNIPROTKB', 'GOID', 'TERM', 'ONTOLOGY')]
-  colnames(full_go_df)[colnames(full_go_df)=="GOID"] <- "GO.ID"
+  full_go_df <- full_go_df[,c(feature_col, 'GOID', 'TERM', 'ONTOLOGY')]
+  colnames(full_go_df)[colnames(full_go_df)=="GOID"] <- go_col
 
   return(full_go_df)
 }

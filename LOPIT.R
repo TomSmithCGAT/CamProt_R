@@ -16,12 +16,13 @@ getClassColours <- function(){
   
 }
 
-organelle_order <- c("CYTOSOL", "PROTEASOME", "PROTEASOME 19S", "PROTEASOME 20S", "RIBOSOME", "RIBOSOME 40S", "RIBOSOME 60S",
-                     "ER", "GOLGI", "GA", "LYSOSOME", "PM", "PEROXISOME", "MITOCHONDRION",
-                     "NUCLEUS/CHROMATIN", "NUCLEUS", "NUCLEUS-CHROMATIN", "CHROMATIN",
+organelle_order <- c("CYTOSOL", "Cytosol", "PROTEASOME", "PROTEASOME 19S", "PROTEASOME 20S", "RIBOSOME", "RIBOSOME 40S", "RIBOSOME 60S",
+                     "er", "ER", "GOLGI", "GA", "LYSOSOME", "PM", "PEROXISOME", "MITOCHONDRION", "MITOCHONDRIA", "Mitochondria",
+                     "Mitochondrion", "NUCLEUS/CHROMATIN", "NUCLEUS", "Nuclear", "NUCLEUS-CHROMATIN", "CHROMATIN",
                      "unknown", "missing")
 
 organelle2colour <- list("CYTOSOL"="#E41A1C",
+                         "Cytosol"="#E41A1C",
                          "PROTEASOME"="#984EA3",
                          "PROTEASOME 19S"="#704da2",
                          "PROTEASOME 20S"="#a24d70",
@@ -29,15 +30,20 @@ organelle2colour <- list("CYTOSOL"="#E41A1C",
                          "RIBOSOME 40S"="#9999FF",
                          "RIBOSOME 60S"="#000099",
                          "ER"="#FF7F00",
+                         "er"="#FF7F00",
                          "GOLGI"="#377EB8",
                          "GA"="#377EB8",
                          "LYSOSOME"="#F781BF",
                          "PM"="#00CED1",
                          "PEROXISOME"="#A65628",
                          "MITOCHONDRION"="#FFD700",
+                         "MITOCHONDRIA"="#FFD700",
+                         "Mitochondria"="#FFD700",
+                         "Mitochondrion"="#FFD700",
                          "NUCLEUS/CHROMATIN"="#9ACD32",
                          "NUCLEUS-CHROMATIN"="#238B45",
                          "NUCLEUS"="#9ACD32",
+                         "Nuclear"="#9ACD32",
                          "CHROMATIN"="#238B45",
                          "unknown"="grey50",
                          "missing"="grey50")
@@ -60,13 +66,15 @@ PlotProteinProfiles <- function(res){
   exprs_df <- exprs(res)
   exprs_df <- melt(exprs_df)
   
-
   p <- ggplot(exprs_df, aes(Var2, value, colour=Var1, group=Var1)) +
     my_theme + geom_line() +
     theme(aspect.ratio=1, axis.text.x=element_text(angle=90, vjust=0.5, hjust=1, size=10))  +
     xlab("") + ylab("norm. abundance") + 
     scale_colour_discrete(name="", na.value="grey")
+  
   print(p)
+  
+  return(p)
 }
 
 # ------------------------------------------------------------------------------------------------------------
@@ -121,22 +129,28 @@ PlotMarkerProfiles <- function(res, fcol="master_protein", keep_markers=c("CYTOS
   }
   else{
     if(unknown){
-      p <- p + stat_summary(aes(group=markers), geom="line", fun.y=mean) +
+      p <- p + stat_summary(aes(group=markers), geom="line", fun.y=mean, size=1) +
         scale_alpha_manual(values=c(1, 0.01), guide=F)
     }
     else{
-      p <- p + stat_summary(aes(group=markers), geom="line", fun.y=mean)
+      p <- p + stat_summary(aes(group=markers), geom="line", fun.y=mean, size=1)
     }
   }
   
   if(!missing(foi)){
     exprs_df <- data.frame(exprs_df)
     features_df <- exprs_df[exprs_df$Var1 %in% foi,]
-    p <- p + geom_line(data=features_df, aes(Var2, value), colour="black", alpha=alpha)
+    #if(plot_all){
+    p <- p + geom_line(data=features_df, aes(Var2, value, group=Var1), colour="black", alpha=alpha)
+    #}
+    #else{
+    #p <- p + stat_summary(data=features_df, aes(Var2, value), group="1",
+    #                      geom="line", fun.y=mean, colour="black", alpha=1)
+    #}
     
   }
   
-  p <- p + guides(colour=guide_legend(override.aes = list(alpha = 1)))
+  p <- p + guides(colour=guide_legend(override.aes = list(alpha = 1, size=1)))
   
   return(p)
 }
@@ -338,8 +352,12 @@ plotMinDistance <- function(qsep1, qsep2, order_organelle=NULL){
 # ------------------------------------------------------------------------------------------------------------
 # Function	: plotPCA
 # ------------------------------------------------------------------------------------------------------------
-makePCA_proj <- function(res, fcol="markers", dims=c(1,2), ...){
-  PCA_matrix <- plot2D(res, fcol=fcol, plot=FALSE, dims=dims, ...)
+makePCA_proj <- function(...){
+  make_proj("PCA", ...)
+}
+
+make_proj <- function(method="PCA", res, fcol="markers", dims=c(1,2), ...){
+  PCA_matrix <- plot2D(res, method=method, fcol=fcol, plot=FALSE, dims=dims, ...)
   axes <- colnames(PCA_matrix)
   colnames(PCA_matrix) <- c("X", "Y")
   PCA_df <- PCA_matrix %>% merge(data.frame(fData(res)), by="row.names")
@@ -350,10 +368,14 @@ makePCA_proj <- function(res, fcol="markers", dims=c(1,2), ...){
   return(list("PCA_df"=PCA_df, "axes"=axes))
 }
 
-LOPITPCAPlotter <- function(PCA_df, axes, xlims=FALSE, ylims=FALSE, foi=FALSE, add_foi_names=FALSE,
-                    just_markers=FALSE, m_colours=FALSE, re_order_markers=FALSE, marker_levels=NULL,
-                    title=FALSE, fcol=FALSE, point_size=FALSE, foi_size=1, foi_alpha=1, foi_shape=8,
-                    foi_colour="black", foi_fill="black", return_proj=FALSE, cex=1, add_density=FALSE){
+LOPITPCAPlotter <- function(...){
+  LOPITPlotter(...)
+}
+
+LOPITPlotter <- function(PCA_df, axes, xlims=FALSE, ylims=FALSE, foi=FALSE, add_foi_names=FALSE,
+                         just_markers=FALSE, m_colours=FALSE, re_order_markers=FALSE, marker_levels=NULL,
+                         title=FALSE, fcol=FALSE, point_size=FALSE, foi_size=1, foi_alpha=1, foi_shape=8,
+                         foi_colour="black", foi_fill="black", return_proj=FALSE, cex=1, add_density=FALSE){
   
   if(!missing(fcol)){
     # remake marker column
@@ -444,6 +466,22 @@ plotPCA <- function(res, fcol, dims=c(1,2), ...){
   
     PCA <- makePCA_proj(res, fcol, dims)
     LOPITPCAPlotter(PCA$PCA_df, PCA$axes, ...)
+}
+
+plotHexbin <- function(res, fcol, dims=c(1,2), ...){
+  
+  PCA <- make_proj("PCA", res, fcol, dims)
+  LOPITPCAPlotter_hexbin(PCA$PCA_df, PCA$axes, ...)
+}
+
+LOPITPCAPlotter_hexbin <- function(PCA_df, axes){
+  p <- ggplot(PCA_df) +
+    geom_hex(aes(X, Y)) +
+    scale_alpha_manual(values=c(0.5,0.1), guide=F) +
+    scale_fill_continuous(low="grey90", high=cbPalette[6]) +
+    my_theme + xlab(axes[1]) + ylab(axes[2])
+  
+  invisible(p)  
 }
 
 # ------------------------------------------------------------------------------------------------------------
@@ -863,3 +901,53 @@ plotTempPhenoDisco <- function(infile){
   invisible(list("convergence"=pheno_convergence_plots, "pca_plot"=pca_plot, "cons_plot"=cons_plot,
                  "object"=object, "top_iteration"=top_iteration))
 }
+
+runTAGMMAP <- function(obj, min_prob_threshold=0.9, max_outlier_prob=0.1){
+  
+  print(table(fData(obj)$markers))
+  params <- tagmMapTrain(obj)
+  
+  plotEllipse(obj, params)
+  addLegend(object = obj, where = "bottomleft", cex = 1)
+  
+  plotEllipse(obj, params, dims=c(3,4))
+  addLegend(object = obj, where = "topright", cex = 1)
+  
+  res_map <- tagmPredict(obj, params)
+  
+  print(table(fData(res_map)$tagm.map.allocation, fData(res_map)[["markers"]]))
+  print(table(fData(res_map)$tagm.map.allocation, fData(res_map)$tagm.map.probability>min_prob_threshold))
+  print(table(fData(res_map)$tagm.map.allocation, fData(res_map)$tagm.map.outlier>max_outlier_prob))
+  
+  fData(res_map)$tagm.map.allocation_filtered <- fData(res_map)$tagm.map.allocation
+  fData(res_map)$tagm.map.allocation_filtered[fData(res_map)$tagm.map.probability<min_prob_threshold] <- "unknown"
+  fData(res_map)$tagm.map.allocation_filtered[fData(res_map)$tagm.map.outlier>max_outlier_prob] <- "unknown"
+  
+  p <- fData(res_map) %>% data.frame() %>% ggplot() +
+    aes(tagm.map.probability) + geom_histogram() + my_theme +
+    facet_wrap(~tagm.map.allocation, scales="free") +
+    theme(axis.text.x=element_text(angle=90)) +
+    xlim(0,NA)
+  
+  print(p)
+  
+  ptsze <- (exp(fData(res_map)$tagm.map.probability) - 1)/2
+  ptsze <- fData(res_map)$tagm.map.probability
+  
+  plot2D(res_map,
+         fcol = "tagm.map.allocation",
+         cex = ptsze,
+         main = "protein pointer scaled with posterior localisation probability")
+  
+  addLegend(object = res_map, where = "bottomright", cex = 1)
+  
+  print(plotPCA(res_map, "tagm.map.allocation_filtered"))
+  print(plotPCA(res_map, "tagm.map.allocation_filtered", dims=c(3,4)))
+  
+  print(PlotMarkerProfiles(res_map, "markers", keep_markers=getMarkerClasses(res_map)))
+  print(PlotMarkerProfiles(res_map, "tagm.map.allocation", keep_markers=getMarkerClasses(res_map)))
+  print(PlotMarkerProfiles(res_map, "tagm.map.allocation_filtered", keep_markers=getMarkerClasses(res_map)))
+  
+  invisible(res_map)
+}
+

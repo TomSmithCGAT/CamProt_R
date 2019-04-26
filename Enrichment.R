@@ -399,11 +399,13 @@ plotTerms <- function(terms_df, pwf, gene2cat,
                       switch_axes=F, plot_top=10){
   terms_df$BH <-  p.adjust(terms_df$over_represented_pvalue, method="BH")
   terms_df$BH[terms_df$BH==0] <- 1E-16
-  terms_df <- addAdjustedOverRep(terms_df, pwf, gene2cat, term_col, target_col)
-  
+
   terms_filtered_df <- terms_df[terms_df$BH <= BH_filter,]
-  terms_filtered_df <- terms_filtered_df[terms_filtered_df$adj_over_rep > overrep_filter,]
   terms_filtered_df <- terms_filtered_df[terms_filtered_df$numDEInCat > numObs_filter,]
+  
+  terms_filtered_df <- addAdjustedOverRep(terms_filtered_df, pwf, gene2cat, term_col, target_col)
+  terms_filtered_df <- terms_filtered_df[terms_filtered_df$adj_over_rep > overrep_filter,]
+  
   
   if(switch_axes){
     terms_filtered_df <- terms_filtered_df[order(terms_filtered_df$adj_over_rep),]
@@ -412,7 +414,8 @@ plotTerms <- function(terms_df, pwf, gene2cat,
     terms_filtered_df <- terms_filtered_df[order(-terms_filtered_df$adj_over_rep),]
   }
   
-  p <- ggplot(terms_filtered_df, aes(category, log(adj_over_rep,2), fill=log(BH,10))) +
+  p <- terms_filtered_df %>% head(plot_top) %>%
+    ggplot(aes(category, log(adj_over_rep,2), fill=log(BH,10))) +
     geom_bar(stat="identity") + 
     xlab("") + ylab("Over-representation (Log2)") +
     scale_fill_continuous(name="BH adj. p-value\n(Log 10)\n", low=cbPalette[3], high="grey30") +
@@ -420,7 +423,7 @@ plotTerms <- function(terms_df, pwf, gene2cat,
     theme(
       text=element_text(size=15),
       plot.title=element_text(hjust=0.5))
-  
+    
   if(switch_axes){
     p <- p + coord_flip()
   }
@@ -428,7 +431,7 @@ plotTerms <- function(terms_df, pwf, gene2cat,
     p <- p + theme(axis.text.x=element_text(size=12, angle=45, vjust=1, hjust=1))
   }
   
-  return(list(plot=p,g=terms_df))
+  return(list(plot=p,g=terms_filtered_df))
 }
 # ------------------------------------------------------------------------------------------------------------
 # Function  : 'makeGene2Cat' to produce a 1:1 mapping of uniprot/ensembl/symbols to GO/Interpro terms. 
