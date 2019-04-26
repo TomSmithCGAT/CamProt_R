@@ -30,7 +30,7 @@ parse_peptides <- function(infile, unique_master=TRUE, silac=FALSE, TMT=FALSE){
     print_n_prot(peptide_df)
   }
   
-  peptide_df <- read.delim(infile,  header=T)
+  peptide_df <- read.delim(infile,  header=T, stringsAsFactors=FALSE)
   cat("Tally of peptides at each stage:\n")
   
   print_summaries(peptide_df, "All peptides with a PSM")
@@ -49,13 +49,14 @@ parse_peptides <- function(infile, unique_master=TRUE, silac=FALSE, TMT=FALSE){
   peptide_df <- peptide_df[peptide_df$associated_crap_protein==0,]
   print_summaries(peptide_df, "Excluding peptides associated with a cRAP protein")
   
-  if (!TMT){
-    peptide_df <- peptide_df[peptide_df$PSM.Ambiguity!="Rejected",]
-    print_summaries(peptide_df, "Excluding peptides rejected due to PSM ambiguity")
-  }
+  # check that this is correct
+  #if (!TMT|silac){
+  #  peptide_df <- peptide_df[peptide_df$PSM.Ambiguity!="Rejected",]
+  #  print_summaries(peptide_df, "Excluding peptides rejected due to PSM ambiguity")
+  #}
   
   if(silac|TMT){
-    peptide_df <- peptide_df[peptide_df$Quan.Info!="NoQuanValues",]    
+    peptide_df <- peptide_df[peptide_df$Quan.Info=="",]    
     print_summaries(peptide_df, "Excluding peptides without quantification")
   }
   return(peptide_df)

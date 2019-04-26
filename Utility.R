@@ -39,7 +39,8 @@ makeMSNSet <- function(obj, samples_inf, ab_col_ix=3){
   meta_columns <- meta_columns[-grep("Found.*", meta_columns)]
   meta_columns <- meta_columns[-grep("Abundance.*", meta_columns)]
   
-  abundance_columns <- colnames(obj)[grep('Abundance.F.*.Sample', colnames(obj))]
+  abundance_columns <- colnames(obj)[grep('Abundance.*.Sample', colnames(obj))]
+  abundance_columns <- abundance_columns[grep('Abundances.Count', abundance_columns, invert=TRUE)]
   
   exprsCsv <- obj[,abundance_columns]
   renamed_abundance_columns <- sapply(strsplit(abundance_columns, "\\."), "[[", ab_col_ix)
@@ -52,7 +53,7 @@ makeMSNSet <- function(obj, samples_inf, ab_col_ix=3){
   
   pdataCsv <- read.table(samples_inf, sep="\t", header=T, row.names = 1, colClasses="character")
   
-  res <- MSnSet(as.matrix(exprsCsv), fdataCsv, pdataCsv)
+  res <- MSnSet(as.matrix(sapply(exprsCsv, as.numeric)), fdataCsv, pdataCsv)
   
   summariseMissing(res)
   
@@ -90,7 +91,7 @@ plotLabelQuant <- function(obj, log=F){
   tmp_df <- data.frame(exprs(obj))
   colnames(tmp_df) <- pData(obj)$Sample_name
   tmp_df[tmp_df==""] <- NA
-  tmp_df <- melt(tmp_df)
+  tmp_df <- melt(tmp_df, id.vars=NULL)
   tmp_df$value <- as.numeric(as.character(tmp_df$value))
   
   if(log){
