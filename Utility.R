@@ -19,6 +19,62 @@ my_theme <- theme_bw() + theme(
 cbPalette <- c("#999999", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
 
 
+# ----------------------------------------------------------------------------------------------------------------------
+# Function	: features
+# Aim		: To aggregate features into master-proteins and carry out QC on dataset. 
+# Input :
+#    infile = file containing output from mascot server
+#    silac = input is from a SILAC experiment
+# Output  	: A dataframe with features associated to a unique master.protein, which is not cRAP or cRAP-associated. 
+# ----------------------------------------------------------------------------------------------------------------------
+print_n_feature <- function(features_df, message){
+  cat(sprintf("%s\t%s\n", length(rownames(features_df)), message))
+}
+
+print_n_prot <- function(features_df){
+  cat(sprintf("These features are associated with %s master proteins\n",
+              length(unique(features_df$master_protein))))}
+
+print_summaries <- function(features_df, message){
+  print_n_feature(features_df, message)
+  print_n_prot(features_df)
+}
+
+parse_features <- function(infile, unique_master=TRUE, silac=FALSE, TMT=FALSE,
+                           level="peptide", filter_crap=TRUE){
+  
+  if(!level %in% c("PSM", "peptide")){
+    stop("level must be PSM or peptide")
+  }
+  
+  features_df <- read.delim(infile,  header=T, stringsAsFactors=FALSE)
+  cat("Tally of features at each stage:\n")
+  
+  print_summaries(features_df, "All features with a PSM")
+  
+  features_df <- features_df %>% filter(master_protein!="")
+  print_summaries(features_df, "Excluding features without a master protein")
+  
+  if(unique_master){
+    features_df <- features_df %>% filter(unique==1)
+    print_summaries(features_df, "Excluding features without a unique master protein")
+  }
+  
+  if(filter_crap){
+    features_df <- features_df %>% filter(crap_protein==0)
+    print_summaries(features_df, "Excluding features matching a cRAP protein")
+    
+    features_df <- features_df %>% filter(associated_crap_protein==0)
+    print_summaries(features_df, "Excluding features associated with a cRAP protein")
+  }
+
+  if(silac|TMT & level=="peptide"){
+    features_df <- features_df %>% filter(Quan.Info!="")
+    print_summaries(features_df, "Excluding features without quantification")
+  }
+  return(features_df)
+}
+
 removeCrap <- function(obj, protein_col="Protein.Accessions"){
   cat(sprintf("Input data: %s rows\n", nrow(obj)))
   obj <- obj %>% filter(!grepl("cRAP", !!as.symbol(protein_col), ignore.case=FALSE))
@@ -31,19 +87,29 @@ summariseMissing <- function(res){
   print(table(rowSums(is.na(as.data.frame(exprs(res))))))
 }
 
-makeMSNSet <- function(obj, samples_inf, ab_col_ix=3){
+makeMSNSet <- function(obj, samples_inf, ab_col_ix=3, level="Peptide"){
   # make dataframes for MSnset object
   rownames(obj) <- seq(1, length(obj[,1]))
   
   meta_columns <- colnames(obj)
-  meta_columns <- meta_columns[-grep("Found.*", meta_columns)]
-  meta_columns <- meta_columns[-grep("Abundance.*", meta_columns)]
-  
-  abundance_columns <- colnames(obj)[grep('Abundance.*.Sample', colnames(obj))]
-  abundance_columns <- abundance_columns[grep('Abundances.Count', abundance_columns, invert=TRUE)]
+  meta_columns <- meta_columns[grep("Found.*", meta_columns, invert=TRUE)]
+  meta_columns <- meta_columns[grep("Abundance.*", meta_columns, invert=TRUE)]
+
+  if(level=="PSM"){
+    abundance_columns <- colnames(obj)[grep('Abundance.*', colnames(obj))]
+    # hard-code index for tag as second value in abundance colname
+    renamed_abundance_columns <- sapply(strsplit(abundance_columns, "\\."), "[[", 2)#ab_col_ix)
+  }
+  else if(level=="Peptide"){
+    abundance_columns <- colnames(obj)[grep('Abundance.*.Sample', colnames(obj))]
+    abundance_columns <- abundance_columns[grep('Abundances.Count', abundance_columns, invert=TRUE)]
+    renamed_abundance_columns <- sapply(strsplit(abundance_columns, "\\."), "[[", ab_col_ix)
+  }
+  else{
+    stop("level must be PSM or peptide")
+  }
   
   exprsCsv <- obj[,abundance_columns]
-  renamed_abundance_columns <- sapply(strsplit(abundance_columns, "\\."), "[[", ab_col_ix)
   
   colnames(exprsCsv) <- renamed_abundance_columns
   
@@ -62,19 +128,27 @@ makeMSNSet <- function(obj, samples_inf, ab_col_ix=3){
   return(res)
 }
 
-plotMissing <- function(obj, ...){
+plotMissing <- function(obj, verbose=TRUE, ...){
   tmp_obj <- MSnbase:::impute(obj, "zero")
   exprs(tmp_obj)[exprs(tmp_obj) != 0] <- 1
   
   missing <- exprs(tmp_obj)
   missing <- missing[rowSums(missing==0)>0,] # identify features without missing values
-  cat(sprintf("Out of %s total features, %s (%s%%) have missing values\n",
-              length(rownames(exprs(tmp_obj))), length(rownames(missing)),
-              round(100*length(rownames(missing))/length(rownames(exprs(tmp_obj))),3)))
+  
+  if(verbose){
+    cat(sprintf("Out of %s total features, %s (%s%%) have missing values\n",
+                length(rownames(exprs(tmp_obj))), length(rownames(missing)),
+                round(100*length(rownames(missing))/length(rownames(exprs(tmp_obj))),3)))
+    
+    print(table(rowSums(missing==0)))
+  }
   
   if(length(rownames(missing))>0){
     missing_twice <- missing[rowSums(missing==0)>1,]
-    cat(sprintf("And %s features have more than one missing value\n", length(rownames(missing_twice))))
+    
+    if(verbose){
+      cat(sprintf("And %s features have more than one missing value\n", length(rownames(missing_twice))))
+    }
     
     colnames(missing) <- pData(tmp_obj)$Sample_name
     
@@ -87,7 +161,7 @@ plotMissing <- function(obj, ...){
 }
 
 
-plotLabelQuant <- function(obj, log=F){
+plotLabelQuant <- function(obj, log=F, print=TRUE){
   tmp_df <- data.frame(exprs(obj))
   colnames(tmp_df) <- pData(obj)$Sample_name
   tmp_df[tmp_df==""] <- NA
@@ -105,12 +179,13 @@ plotLabelQuant <- function(obj, log=F){
     ylab("Peptide intensity (log2) ") + xlab("") +
     scale_y_continuous(breaks=seq(-20,20,2))
   
-  print(p1)
-  
   p2 <- p + geom_density(aes(value, col=variable)) +
     xlab("Peptide intensity (log2) ") + ylab("Density")
   
-  print(p2)
+  if(print){
+    print(p1)
+    print(p2)
+  }
   
   return(list("p1"=p1, "p2"=p2))
 }
@@ -124,37 +199,56 @@ myAggFunction <- function(x, FUN=sum){
   }
 }
 
-agg_to_peptides <- function(obj, gb=NULL){
+agg_to_peptide_mod <- function(obj, gb=NULL, mod_col="Modifications", seq_col="Sequence", fun=sum){
   
   if(missing(gb)){
-    gb <- fData(obj)$Sequence
+    gb <- paste(fData(obj)[[seq_col]], fData(obj)[[mod_col]])
   }
-    # we'll use our own aggregation function here to obtain the sum over all the modified peptides
-  pep_agg <- combineFeatures(obj, groupBy=gb, fun=myAggFunction)
+  # we'll use our own aggregation function here to obtain the sum over all the unique peptide sequence + modification
+  
+  pep_agg <- combineFeatures(obj, groupBy=gb, fun=function(x) myAggFunction(x, FUN=fun))
   pData(pep_agg) <- pData(obj)
   return(pep_agg)
 }
 
 
-agg_to_protein <- function(obj, protein_col="Master.Protein.Accessions", gb=NULL){
+agg_to_peptides <- function(obj, gb=NULL, seq_col="Sequence", fun=sum){
+  
+  # remove any "CV.Abundance" columns. Otherwise, combineFeatures will throw an error
+  fData(obj) <- fData(obj)[,grep("CV.*", colnames(fData(obj)), invert=TRUE)]
+  
+  if(missing(gb)){
+    gb <- fData(obj)[[seq_col]]
+  }
+  
+  # we'll use our own aggregation function here to obtain the sum over all the modified peptides
+  pep_agg <- combineFeatures(obj, groupBy=gb, fun=function(x) myAggFunction(x, FUN=fun))
+  pData(pep_agg) <- pData(obj)
+  return(pep_agg)
+}
+
+
+agg_to_protein <- function(obj, protein_col="Master.Protein.Accessions", gb=NULL, fun=median){
   
   if(missing(gb)){
     gb <- fData(obj)[[protein_col]]
   }
   
-  # remove the "CV.Abundance" columns added in the last combineFeatures call. Otherwise, combineFeatures will throw an error
-  fData(obj) <- fData(obj)[,-grep("CV.*", colnames(fData(obj)))]
+  # remove any "CV.Abundance" columns. Otherwise, combineFeatures will throw an error
+  fData(obj) <- fData(obj)[,grep("CV.*", colnames(fData(obj)), invert=TRUE)]
   
   # we'll use our own aggregation function here to obtain the median over all the peptides
-  pep_agg <- combineFeatures(obj, groupBy=gb, fun=function(x) myAggFunction(x, FUN=median))
+  pep_agg <- combineFeatures(obj, groupBy=gb, fun=function(x) myAggFunction(x, FUN=fun))
   pData(pep_agg) <- pData(obj)
   return(pep_agg)
 }
+
 
 getMedians <- function(obj){
   medians <- colMedians(exprs(obj), na.rm=TRUE)
   return(medians)
 }
+
 
 centerNormalise <- function(obj, medians=NULL){
 

@@ -951,3 +951,40 @@ runTAGMMAP <- function(obj, min_prob_threshold=0.9, max_outlier_prob=0.1){
   invisible(res_map)
 }
 
+combineLOPITs <- function(lopit1, lopit2){
+  
+  tmp_exprs <- rbind(exprs(lopit1), exprs(lopit2))
+  
+  tmp_fData1 <- fData(lopit1)
+  tmp_fData2 <- fData(lopit2)
+  
+  for(col in setdiff(colnames(tmp_fData2), colnames(tmp_fData1))){
+    tmp_fData1[[col]] <- NA
+  }
+  
+  for(col in setdiff(colnames(tmp_fData1), colnames(tmp_fData2))){
+    tmp_fData2[[col]] <- NA
+  }
+  
+  tmp_fData <- rbind(tmp_fData1, tmp_fData2)
+  
+  mod_prot_plus_mod_pep <- MSnSet(tmp_exprs, tmp_fData, pData(lopit1))
+  
+  invisible(mod_prot_plus_mod_pep)
+}
+
+combineUnmodProtModPep <- function(unmod_prot, mod_pep, mod_to_unknown=FALSE){
+  
+  combined_data <- combineLOPITs(unmod_prot, mod_pep)
+  fData(combined_data)$mod <- c(rep("Unmodified", length(rownames(unmod_prot))),
+                                rep("Modified", length(rownames(mod_pep))))
+  
+  for(col in fvarLabels(combined_data)[grep("^CV", fvarLabels(combined_data))])
+    
+    if(mod_to_unknown){
+      # reset the marker column to unknown so that all modified features can be classified  
+      fData(combined_data)$markers[fData(combined_data)$mod=="Modified"] <- "unknown"
+    }
+  
+  invisible(combined_data)
+}
