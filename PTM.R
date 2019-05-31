@@ -1,6 +1,7 @@
 suppressMessages(library(dplyr))
 suppressMessages(library(tidyr))
 
+
 ### parsePTMScores ###
 # Function to parse the PD PTM score probabilities column
 # and add columns for downstream filtering
@@ -283,7 +284,8 @@ parsePSMAndAggregate <- function(
   max_missing=3, # Maximum number of allowed missing values
   mod_col="Modifications", # column to identify the modifications for grouping PSM into pep seq + mod
   agg_to_unique_pep=FALSE, # set to TRUE (for total, e.g unmodified) peptides to agg. to pep. ignoring mods
-  agg_to_prot=FALSE # set to TRUE (for total, e.g unmodified) peptides to agg. to protein
+  agg_to_prot=FALSE, # set to TRUE (for total, e.g unmodified) peptides to agg. to protein
+  MS_level="MS3"
 ){
   
   printModTally <- function(data, modifications){
@@ -317,7 +319,13 @@ parsePSMAndAggregate <- function(
   }
   
   # Make MsnSet
-  raw_res <- makeMSNSet(raw_psm_only_mod, sample_infile, level="PSM") 
+  #if(MS_level=="MS2"){
+  #  raw_res <- makeMSNSet(raw_psm_only_mod, sample_infile, level="PSM", ab_col_ix=2) 
+  #}
+  #else if(MS_level=="MS3"){
+  #  raw_res <- makeMSNSet(raw_psm_only_mod, sample_infile, level="PSM", ab_col_ix=3) 
+  #}
+  raw_res <- makeMSNSet(raw_psm_only_mod, sample_infile, level="PSM", ab_col_ix=2) 
   
   if(hasArg(modifications)){
     printModTally(fData(raw_res), modifications)
@@ -338,15 +346,19 @@ parsePSMAndAggregate <- function(
   ####################################################
   # Remove PSMs with Signal:Noise (SN) below threshold
   ####################################################
-  cat("Removing PSMs with low Signal:noise ratio\n")
-  raw_res_sn <- raw_res_int[fData(raw_res_int)$Average.Reporter.SN>=SN_threshold,]
-  cat(sprintf("PSMs with SN over threshold(%s): %s/%s\n",
-              round(SN_threshold, 2), length(rownames(raw_res_sn)), length(rownames(raw_res_int))))
-  
-  cat(sprintf("Proteins retained = %s/%s\n",
-              length(unique(fData(raw_res_sn)$master_protein)),
-              length(unique(fData(raw_res_int)$master_protein))))
-  
+  if(MS_level=="MS3"){
+    cat("Removing PSMs with low Signal:noise ratio\n")
+    raw_res_sn <- raw_res_int[fData(raw_res_int)$Average.Reporter.SN>=SN_threshold,]
+    cat(sprintf("PSMs with SN over threshold(%s): %s/%s\n",
+                round(SN_threshold, 2), length(rownames(raw_res_sn)), length(rownames(raw_res_int))))
+    
+    cat(sprintf("Proteins retained = %s/%s\n",
+                length(unique(fData(raw_res_sn)$master_protein)),
+                length(unique(fData(raw_res_int)$master_protein))))
+  }
+  else{
+    raw_res_sn <- raw_res_int
+  }
   
   ###################################################
   # plot distribution of intensities per tag
@@ -572,3 +584,4 @@ parsePSMAndAggregate <- function(
   
   invisible(list("datasets"=datasets, "descriptions"=descriptions, "plots"=plots))
 }
+  
