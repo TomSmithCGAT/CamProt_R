@@ -87,22 +87,22 @@ summariseMissing <- function(res){
   print(table(rowSums(is.na(as.data.frame(exprs(res))))))
 }
 
-makeMSNSet <- function(obj, samples_inf, ab_col_ix=3, level="Peptide"){
+makeMSNSet <- function(obj, samples_inf, ab_col_ix=3, level="peptide", quant_name="Abundance"){
   # make dataframes for MSnset object
   rownames(obj) <- seq(1, length(obj[,1]))
   
   meta_columns <- colnames(obj)
   meta_columns <- meta_columns[grep("Found.*", meta_columns, invert=TRUE)]
-  meta_columns <- meta_columns[grep("Abundance.*", meta_columns, invert=TRUE)]
+  meta_columns <- meta_columns[grep(sprintf('%s.*', quant_name), meta_columns, invert=TRUE)]
+
 
   if(level=="PSM"){
-    abundance_columns <- colnames(obj)[grep('Abundance.*', colnames(obj))]
-    # hard-code index for tag as second value in abundance colname
-    renamed_abundance_columns <- sapply(strsplit(abundance_columns, "\\."), "[[", 2)#ab_col_ix)
-  }
-  else if(level=="Peptide"){
-    abundance_columns <- colnames(obj)[grep('Abundance.*.Sample', colnames(obj))]
-    abundance_columns <- abundance_columns[grep('Abundances.Count', abundance_columns, invert=TRUE)]
+    abundance_columns <- colnames(obj)[grep(sprintf('%s.*', quant_name), colnames(obj))]
+    renamed_abundance_columns <- sapply(strsplit(abundance_columns, "\\."), "[[", ab_col_ix)
+    }
+  else if(level=="peptide"){
+    abundance_columns <- colnames(obj)[grep(sprintf('%s.*', quant_name), colnames(obj))]
+    abundance_columns <- abundance_columns[grep(sprintf('%s.Count', quant_name), abundance_columns, invert=TRUE)]
     renamed_abundance_columns <- sapply(strsplit(abundance_columns, "\\."), "[[", ab_col_ix)
   }
   else{
@@ -110,7 +110,6 @@ makeMSNSet <- function(obj, samples_inf, ab_col_ix=3, level="Peptide"){
   }
   
   exprsCsv <- obj[,abundance_columns]
-  
   colnames(exprsCsv) <- renamed_abundance_columns
   
   exprsCsv[exprsCsv==""] <- NA
@@ -118,6 +117,8 @@ makeMSNSet <- function(obj, samples_inf, ab_col_ix=3, level="Peptide"){
   fdataCsv <- obj[,meta_columns]
   
   pdataCsv <- read.table(samples_inf, sep="\t", header=T, row.names = 1, colClasses="character")
+  
+  exprsCsv <- exprsCsv[,rownames(pdataCsv)]
   
   res <- MSnSet(as.matrix(sapply(exprsCsv, as.numeric)), fdataCsv, pdataCsv)
   
@@ -129,8 +130,9 @@ makeMSNSet <- function(obj, samples_inf, ab_col_ix=3, level="Peptide"){
 }
 
 plotMissing <- function(obj, verbose=TRUE, ...){
-  tmp_obj <- MSnbase:::impute(obj, "zero")
-  exprs(tmp_obj)[exprs(tmp_obj) != 0] <- 1
+  tmp_obj <- obj
+  exprs(tmp_obj)[!is.na(exprs(tmp_obj))] <- 1
+  exprs(tmp_obj)[is.na(exprs(tmp_obj))] <- 0
   
   missing <- exprs(tmp_obj)
   missing <- missing[rowSums(missing==0)>0,] # identify features without missing values
@@ -177,7 +179,7 @@ plotLabelQuant <- function(obj, log=F, print=TRUE){
   p1 <- p + geom_boxplot(aes(variable, value)) +
     theme(axis.text.x=element_text(angle=90, vjust=0.5, hjust=1)) +
     ylab("Peptide intensity (log2) ") + xlab("") +
-    scale_y_continuous(breaks=seq(-20,20,2))
+    scale_y_continuous(breaks=seq(-100,100,2))
   
   p2 <- p + geom_density(aes(value, col=variable)) +
     xlab("Peptide intensity (log2) ") + ylab("Density")
