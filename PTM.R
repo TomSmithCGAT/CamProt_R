@@ -227,6 +227,9 @@ addSiteSequence <- function(obj, proteome_fasta){
   return(obj)
 }
 
+
+
+
 # ----------------------------------------------------------------------------------------------------------------------
 # Function	: parsePSMAndAggregate
 # Aim		: parse PSMs and prepare for LOPIT analysis. 
@@ -282,6 +285,8 @@ parsePSMAndAggregate <- function(
   interference_threshold=50, # Maximum interference
   total_data, # Center-normalise using this "total" data rather than the observed intensities
   max_missing=3, # Maximum number of allowed missing values
+  sequential_missing_max=6, # minimum (total) number of missing values to allow for sequential zero imputation
+  sequential_missing_min=4, # minimum number of sequential missing values for zero imputation
   mod_col="Modifications", # column to identify the modifications for grouping PSM into pep seq + mod
   agg_to_unique_pep=FALSE, # set to TRUE (for total, e.g unmodified) peptides to agg. to pep. ignoring mods
   agg_to_prot=FALSE, # set to TRUE (for total, e.g unmodified) peptides to agg. to protein
@@ -470,9 +475,17 @@ parsePSMAndAggregate <- function(
   ######################################################
   # Impute missing values
   ######################################################
+  
+  cat(sprintf("Imputing between %s-%s sequential missing values with zero\n",
+              sequential_missing_min, sequential_missing_max))
+  agg_pep_mod_sum_norm_impute <- replace_missing_not_at_random(
+    agg_pep_mod_sum_norm,
+    max_total_missing=sequential_missing_max,
+    min_sequential_missing=sequential_missing_min)
+  
   cat(sprintf("Imputing up to %s missing values by KNN\n", max_missing))
   agg_pep_mod_sum_norm_impute <- ImputeMissing(
-    agg_pep_mod_sum_norm, missing=max_missing)
+    agg_pep_mod_sum_norm_impute, missing=max_missing)
   
   datasets["agg_pep_mod_sum_norm_impute"] <- agg_pep_mod_sum_norm_impute
   descriptions[["agg_pep_mod_sum_norm_impute"]] <- "
