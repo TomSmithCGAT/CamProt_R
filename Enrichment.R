@@ -392,8 +392,8 @@ addAdjustedOverRep <- function(obj, pwf, gene2cat, term_col, target_col){
 # Function	: plotGOTerms
 # ------------------------------------------------------------------------------------------------------------
 plotTerms <- function(terms_df, pwf, gene2cat,
-                      term_col="transcript_biotype",
-                      target_col="transcript_id",
+                      term_col="GO.ID",
+                      target_col="UNIPROTKB",
                       BH_filter=0.01,
                       overrep_filter=1, numObs_filter=50,
                       switch_axes=F, plot_top=10){
@@ -403,6 +403,10 @@ plotTerms <- function(terms_df, pwf, gene2cat,
   terms_filtered_df <- terms_df[terms_df$BH <= BH_filter,]
   terms_filtered_df <- terms_filtered_df[terms_filtered_df$numDEInCat > numObs_filter,]
   
+  if(nrow(terms_filtered_df)==0){
+    cat("No terms were significantly enriched! Return NULL objects")
+    return(list(plot=NULL,g=NULL))
+  }
   terms_filtered_df <- addAdjustedOverRep(terms_filtered_df, pwf, gene2cat, term_col, target_col)
   terms_filtered_df <- terms_filtered_df[terms_filtered_df$adj_over_rep > overrep_filter,]
   
