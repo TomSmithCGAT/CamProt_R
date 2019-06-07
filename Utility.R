@@ -19,14 +19,7 @@ my_theme <- theme_bw() + theme(
 cbPalette <- c("#999999", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
 
 
-# ----------------------------------------------------------------------------------------------------------------------
-# Function	: features
-# Aim		: To aggregate features into master-proteins and carry out QC on dataset. 
-# Input :
-#    infile = file containing output from mascot server
-#    silac = input is from a SILAC experiment
-# Output  	: A dataframe with features associated to a unique master.protein, which is not cRAP or cRAP-associated. 
-# ----------------------------------------------------------------------------------------------------------------------
+
 print_n_feature <- function(features_df, message){
   cat(sprintf("%s\t%s\n", length(rownames(features_df)), message))
 }
@@ -40,8 +33,75 @@ print_summaries <- function(features_df, message){
   print_n_prot(features_df)
 }
 
-parse_features <- function(infile, unique_master=TRUE, silac=FALSE, TMT=FALSE,
-                           level="peptide", filter_crap=TRUE){
+# Steps are:
+# 1. Filter modifications
+# 2. Center-median normalise PSM
+# 3. Aggregate PSM level data to unique peptide sequence + modification
+# 4. Sum normalise
+# 5. Impute missing values
+# 6. (Optional) Aggregate to unique peptide sequence, sum normalise and impute missing values (starts from step 4)
+# 7. (Optional) Aggregate to unique protein ID, sum normalise and impute missing values (starts from step 6 prior to sum normalisation)
+#
+# Input :
+#   raw_psm: [REQUIRED] The PSM level dataframe. This can be obtained by parsing PD output with `parse_features`. If PSMs contain PTMs,
+#             you may want to further parse with `parsePTMScores`, `addPTMPositions` and `addSiteSequence` first.
+#   sample_infile: [REQUIRED] Filename for table mapping TMT tags to sample names. e.g:
+#                   Tag     Sample_name
+#                   126     100
+#                   127N    400
+#                   [...]   [...]
+
+# ----------------------------------------------------------------------------------------------------------------------
+# Function	: parse_features
+# Aim		: Parse output from PD and filter
+#
+# Steps are:
+# 1. Read in PD data
+# 2. Exclude features without a master protein
+# 3. (Optional) Exclude features without a unique master protein (Number.of.Protein.Groups==1)
+# 4. (Optional) Exclude features matching a cRAP protein
+# 5. (Optional) Exclude features matching a proteins associated with a cRAP protein (see below)
+# 6. Filter out features without quantification values (only if (TMT or SILAC) & peptide level input)
+#
+# "Associated cRAP"
+# I've observed that the cRAP database does not contain all the possible cRAP proteins.
+# E.g some features can be assigned to a keratin which is not in the cRAP database.
+# In most cases, these "associated cRAP" proteins will have at least one feature shared with a cRAP
+# protein. Thus, use this to remove them: see simplified example below
+#
+# feature Protein.Accessions          Master.Protein.Accessions
+# f1      protein1, protein2, cRAP1   protein 1
+# f2      protein1, protein3          protein 3
+# f3      protein2                    protein 2
+#
+# Here, f1 indicates that protein1 and protein2 are associated with a cRAP protein.
+# f2 and f3 are therefore filtered out as well, regardless of the Master.Protein.Accession column value
+#
+#
+# Input:
+#    infile: [REQUIRED] file containing output from Proteome Discoverer
+#    master_protein_col: [REQUIRED; DEFUALT="Master.Protein.Accessions"]
+#                        The column containing the master protein.
+#    protein_col: [REQUIRED; DEFUALT="Protein.Accessions"]
+#                 The column containing all the protein matches.
+#    unique_master: [DEFAULT=TRUE] Filter out features without a unique master protein
+#    silac: [DEFAULT=FALSE] SILAC experiment
+#    TMT: [DEFAULT=FALSE] TMT experiment
+#    level: [REQUIRED; DEFAULT="peptide"] Input level. Must be "peptide" or "PSM
+#    filter_crap: [DEFAULT=TRUE] Filter out the features which match a cRAP protein
+#    filter_associated_crap: [DEFAULT=TRUE] Filter out the features which match a cRAP associated protein
+#
+# Output: Filtered PD results
+# ----------------------------------------------------------------------------------------------------------------------
+parse_features <- function(infile,
+                           master_protein_col="Master.Protein.Accessions",
+                           protein_col="Protein.Accessions",
+                           unique_master=TRUE,
+                           silac=FALSE,
+                           TMT=FALSE,
+                           level="peptide",
+                           filter_crap=TRUE,
+                           filter_associated_crap=TRUE){
   
   if(!level %in% c("PSM", "peptide")){
     stop("level must be PSM or peptide")
@@ -50,22 +110,38 @@ parse_features <- function(infile, unique_master=TRUE, silac=FALSE, TMT=FALSE,
   features_df <- read.delim(infile,  header=T, stringsAsFactors=FALSE)
   cat("Tally of features at each stage:\n")
   
-  print_summaries(features_df, "All features with a PSM")
+  print_summaries(features_df, "All features")
   
-  features_df <- features_df %>% filter(master_protein!="")
+  features_df <- features_df %>% filter(UQ(as.name(master_protein_col))!="")
   print_summaries(features_df, "Excluding features without a master protein")
   
   if(unique_master){
-    features_df <- features_df %>% filter(unique==1)
-    print_summaries(features_df, "Excluding features without a unique master protein")
+    features_df <- features_df %>% filter(Number.of.Protein.Groups==1)
+    print_summaries(
+      features_df, "Excluding features without a unique master protein")
   }
   
   if(filter_crap){
-    features_df <- features_df %>% filter(crap_protein==0)
+    
+    if(filter_associated_crap){
+      associated_crap <- features_df %>%
+        filter(grepl("cRAP", UQ(as.name("Protein.Accessions")))) %>%
+        pull(UQ(as.name("Protein.Accessions"))) %>%
+        strsplit("; ") %>%
+        unlist()
+      associated_crap <- associated_crap[!grepl("cRAP", associated_crap)]
+    }
+
+    features_df <- features_df %>% filter(!grepl("cRAP", UQ(as.name(protein_col))))
     print_summaries(features_df, "Excluding features matching a cRAP protein")
     
-    features_df <- features_df %>% filter(associated_crap_protein==0)
-    print_summaries(features_df, "Excluding features associated with a cRAP protein")
+    if(filter_associated_crap){
+      cat(sprintf("Identified an additional %s proteins as 'cRAP associated'\n", length(associated_crap)))
+
+      features_df <- features_df %>% filter(!grepl(paste(associated_crap, collapse="|"), UQ(as.name(protein_col))))
+      print_summaries(features_df, "Excluding features associated with a cRAP protein")
+    }
+    
   }
 
   if(silac|TMT & level=="peptide"){
@@ -94,8 +170,7 @@ makeMSNSet <- function(obj, samples_inf, ab_col_ix=3, level="peptide", quant_nam
   meta_columns <- colnames(obj)
   meta_columns <- meta_columns[grep("Found.*", meta_columns, invert=TRUE)]
   meta_columns <- meta_columns[grep(sprintf('%s.*', quant_name), meta_columns, invert=TRUE)]
-
-
+  
   if(level=="PSM"){
     abundance_columns <- colnames(obj)[grep(sprintf('%s.*', quant_name), colnames(obj))]
     renamed_abundance_columns <- sapply(strsplit(abundance_columns, "\\."), "[[", ab_col_ix)
@@ -530,3 +605,43 @@ add_newlines <- function(input_string, max_length=20,sep=" "){
     }
   }
 }
+
+# The functions below are used to replace sequential missing values with zeros
+replace_missing_not_at_random_row <- function(x, min_sequential_missing){
+  
+  missing_rle <- rle(is.na(x))
+  
+  sequential_blocks <- missing_rle$values
+  sequential_blocks[missing_rle$lengths<min_sequential_missing] <- FALSE
+  
+  replace_with_zero <- rep(sequential_blocks, missing_rle$lengths)
+  
+  out <- x
+  out[replace_with_zero]<-0
+  
+  return(out)
+}
+
+replace_missing_not_at_random <- function(obj, max_total_missing=10, min_sequential_missing=4){
+  
+  missing_n <- rowSums(is.na(exprs(obj)))
+  cat(sprintf("Removing %s features with more than %s missing values\n",
+              sum(missing_n>max_total_missing), max_total_missing))
+  obj <- obj[missing_n<=max_total_missing,]
+  
+  exprs(obj) <- exprs(obj) %>%
+    apply(1, function(x) replace_missing_not_at_random_row(x, min_sequential_missing)) %>%
+    t()
+  
+  zero_n <- rowSums(exprs(obj)==0, na.rm=TRUE)
+  fData(obj)$zero_n <- zero_n
+  cat("Number of sequential values imputed with zero\n")
+  print(table(zero_n))
+  # assuming that zeros are from the step above only...
+  cat(sprintf("Sequential missing values imputed with zero in %s features\n", sum(zero_n>=min_sequential_missing)))
+  
+  
+  return(obj)
+}
+
+
