@@ -148,13 +148,13 @@ addPTMPositions <- function(obj, proteome_fasta, master_protein_col="Master.Prot
 
     for(p_start in peptide_starts){
       position_string <- NULL    
-      
       for(ptm_p in strsplit(filtered_pos, split=";")[[1]]){
-        position_string[[ptm_p]] <- as.numeric(p_start) + as.numeric(ptm_p)
+        position_string[[ptm_p]] <- p_start + as.numeric(ptm_p)
         
       }
-      return_string[[p_start]] <- paste0(position_string, collapse="|")
+      return_string[[as.character(p_start)]] <- paste0(position_string, collapse="|")
     }
+    
     return(paste0(return_string, collapse=";"))
   }
   
@@ -288,6 +288,7 @@ parsePSMAndAggregate <- function(
   raw_psm, # the PSM level dataframe
   sample_infile, # file mapping TMT tags to sample names
   plots_dir, # Where to save plots
+  master_protein_col="Master.Protein.Accessions", # master protein column name
   modifications, # Expected modifications to filter against, e.g c("Succinyl", "Malonyl", "Glutaryl")
   SN_threshold=5, # Signal:noise threshold to retain PSM quantification values
   subset_cols_ix, # Subset the TMT dataset to these columns, e.g 1:10
@@ -355,8 +356,8 @@ parsePSMAndAggregate <- function(
               round(interference_threshold, 2), length(rownames(raw_res_int)), length(rownames(raw_res))))
   
   cat(sprintf("Proteins retained = %s/%s\n",
-              length(unique(fData(raw_res_int)$master_protein)),
-              length(unique(fData(raw_res)$master_protein))))
+              length(unique(fData(raw_res_int)[[master_protein_col]])),
+              length(unique(fData(raw_res)[[master_protein_col]]))))
   
   ####################################################
   # Remove PSMs with Signal:Noise (SN) below threshold
@@ -368,8 +369,8 @@ parsePSMAndAggregate <- function(
                 round(SN_threshold, 2), length(rownames(raw_res_sn)), length(rownames(raw_res_int))))
     
     cat(sprintf("Proteins retained = %s/%s\n",
-                length(unique(fData(raw_res_sn)$master_protein)),
-                length(unique(fData(raw_res_int)$master_protein))))
+                length(unique(fData(raw_res_sn)[[master_protein_col]])),
+                length(unique(fData(raw_res_int)[[master_protein_col]]))))
   }
   else{
     raw_res_sn <- raw_res_int
@@ -453,6 +454,16 @@ parsePSMAndAggregate <- function(
   # Aggregate to unique peptide sequence + modifications
   ######################################################
   cat("Aggregating to unique peptide sequence + modifications\n")
+  print(raw_res_sn_filter_low_cm_norm)
+  print(max(length(fData(raw_res_sn_filter_low_cm_norm)[[mod_col]])))
+  print(fData(raw_res_sn_filter_low_cm_norm))
+  
+  print(head(fData(raw_res_sn_filter_low_cm_norm)[["Sequence"]]))
+  print(head(fData(raw_res_sn_filter_low_cm_norm)[["Modifications"]]))
+  print(mod_col)
+  print(head(fData(raw_res_sn_filter_low_cm_norm)[[mod_col]]))
+  print(head(fData(raw_res_sn_filter_low_cm_norm)))
+  
   agg_pep_mod <- agg_to_peptide_mod(raw_res_sn_filter_low_cm_norm, mod_col=mod_col)
   
   cat(sprintf("%s unique seq + mod peptides\n", length(rownames(agg_pep_mod))))
@@ -503,7 +514,7 @@ parsePSMAndAggregate <- function(
   
   cat(sprintf("At the end, we have retained %s peptides in %s proteins\n",
               length(rownames(agg_pep_mod_sum_norm_impute)),
-              length(unique(fData(agg_pep_mod_sum_norm_impute)$master_protein))))
+              length(unique(fData(agg_pep_mod_sum_norm_impute)[[master_protein_col]]))))
   
   ######################################
   # Aggregate to unique peptide sequence, sum normalise and impute
@@ -543,7 +554,7 @@ parsePSMAndAggregate <- function(
     
     cat(sprintf("At the end, we have retained %s peptides in %s proteins\n",
                 length(rownames(agg_pep_sum_norm_impute)),
-                length(unique(fData(agg_pep_sum_norm_impute)$master_protein))))
+                length(unique(fData(agg_pep_sum_norm_impute)[[master_protein_col]]))))
     
   }
   
@@ -560,7 +571,7 @@ parsePSMAndAggregate <- function(
     
     cat("Aggregating to unique protein, then sum normalise, then impute\n")
     
-    agg_prot <- agg_to_protein(agg_pep, "master_protein")
+    agg_prot <- agg_to_protein(agg_pep, master_protein_col)
     
     cat(sprintf("%s unique proteins\n", length(rownames(agg_prot))))
     
