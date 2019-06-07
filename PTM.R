@@ -1,6 +1,7 @@
 suppressMessages(library(dplyr))
 suppressMessages(library(tidyr))
-
+require("GenomicRanges")
+require("Biostrings")
 
 ### parsePTMScores ###
 # Function to parse the PD PTM score probabilities column
@@ -123,21 +124,29 @@ parsePTMScores <- function(obj, threshold=95, ptm_col="PhosphoRS.Best.Site.Proba
 
 
 # TS: Note, this function was initially copied entirely from Phospho.R and
-# hard-coded references to phosphorylation removed. It has since been simplified to use the 
-# peptide_start information added by add_master_protein.py since the PSM level data from 
-# PD does not contain the position of the peptide with respect to the proteins
-addPTMPositions <- function(obj){
+# hard-coded references to phosphorylation removed. It has since been modified 
+# to use a proteome fasta to identify the position of the PTM with respect to the protein
+addPTMPositions <- function(obj, proteome_fasta, master_protein_col="Master.Protein.Accessions"){
   
-  combine_peptide_ptm_positions <- function(peptide_start, filtered_pos){
-    # Given a string with start positions (peptide_start) and positions of PTM AA with
-    # respect to peptide sequence (filtered_pos), return the PTM positions with respect to protein sequence
+  proteome <- readAAStringSet(proteome_fasta)
+  names(proteome) <- sapply(base::strsplit(names(proteome), split="\\|") , "[[", 2)
+  
+  combine_peptide_ptm_positions <- function(proteome, protein, sequence, filtered_pos){
+    # Given a master protein(s), sequence and positions of PTM AA with respect to peptide sequence (filtered_pos),
+    # return the PTM positions with respect to protein sequence
     
     if(filtered_pos==""){
       return(NA)
     }
     return_string <- NULL
-    #print(peptide_start)
-    for(p_start in strsplit(peptide_start, split=";")[[1]]){
+    
+    if(length(proteins)>1){
+      return("")
+    }
+    
+    peptide_starts <- start(matchPattern(sequence, proteome[[protein]]))
+
+    for(p_start in peptide_starts){
       position_string <- NULL    
       
       for(ptm_p in strsplit(filtered_pos, split=";")[[1]]){
@@ -150,7 +159,8 @@ addPTMPositions <- function(obj){
   }
   
   obj$ptm_position <- apply(
-    obj, MARGIN=1, function(x) combine_peptide_ptm_positions(x[["peptide_start"]], x[["filtered_pos"]]))
+    obj, MARGIN=1, function(x) combine_peptide_ptm_positions(
+      proteome, x[[master_protein_col]], x[["Sequence"]], x[["filtered_pos"]]))
   
   return(obj)
 }
