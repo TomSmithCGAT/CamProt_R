@@ -24,13 +24,13 @@ print_n_feature <- function(features_df, message){
   cat(sprintf("%s\t%s\n", length(rownames(features_df)), message))
 }
 
-print_n_prot <- function(features_df){
+print_n_prot <- function(features_df, master_protein_col){
   cat(sprintf("These features are associated with %s master proteins\n",
-              length(unique(features_df$master_protein))))}
+              length(unique(features_df[[master_protein_col]]))))}
 
-print_summaries <- function(features_df, message){
+print_summaries <- function(features_df, master_protein_col, message){
   print_n_feature(features_df, message)
-  print_n_prot(features_df)
+  print_n_prot(features_df, master_protein_col)
 }
 
 # Steps are:
@@ -110,15 +110,15 @@ parse_features <- function(infile,
   features_df <- read.delim(infile,  header=T, stringsAsFactors=FALSE)
   cat("Tally of features at each stage:\n")
   
-  print_summaries(features_df, "All features")
+  print_summaries(features_df, master_protein_col, "All features")
   
   features_df <- features_df %>% filter(UQ(as.name(master_protein_col))!="")
-  print_summaries(features_df, "Excluding features without a master protein")
+  print_summaries(features_df, master_protein_col, "Excluding features without a master protein")
   
   if(unique_master){
     features_df <- features_df %>% filter(Number.of.Protein.Groups==1)
     print_summaries(
-      features_df, "Excluding features without a unique master protein")
+      features_df, master_protein_col, "Excluding features without a unique master protein")
   }
   
   if(filter_crap){
@@ -133,20 +133,20 @@ parse_features <- function(infile,
     }
 
     features_df <- features_df %>% filter(!grepl("cRAP", UQ(as.name(protein_col))))
-    print_summaries(features_df, "Excluding features matching a cRAP protein")
+    print_summaries(features_df, master_protein_col, "Excluding features matching a cRAP protein")
     
     if(filter_associated_crap){
       cat(sprintf("Identified an additional %s proteins as 'cRAP associated'\n", length(associated_crap)))
 
       features_df <- features_df %>% filter(!grepl(paste(associated_crap, collapse="|"), UQ(as.name(protein_col))))
-      print_summaries(features_df, "Excluding features associated with a cRAP protein")
+      print_summaries(features_df, master_protein_col, "Excluding features associated with a cRAP protein")
     }
     
   }
 
   if(silac|TMT & level=="peptide"){
     features_df <- features_df %>% filter(Quan.Info!="")
-    print_summaries(features_df, "Excluding features without quantification")
+    print_summaries(features_df, master_protein_col, "Excluding features without quantification")
   }
   return(features_df)
 }
