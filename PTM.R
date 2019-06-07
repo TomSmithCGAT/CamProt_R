@@ -149,7 +149,7 @@ addPTMPositions <- function(obj, proteome_fasta, master_protein_col="Master.Prot
     for(p_start in peptide_starts){
       position_string <- NULL    
       for(ptm_p in strsplit(filtered_pos, split=";")[[1]]){
-        position_string[[ptm_p]] <- p_start + as.numeric(ptm_p)
+        position_string[[ptm_p]] <- p_start + as.numeric(ptm_p) - 1
         
       }
       return_string[[as.character(p_start)]] <- paste0(position_string, collapse="|")
