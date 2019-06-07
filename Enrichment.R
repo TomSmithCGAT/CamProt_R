@@ -375,7 +375,7 @@ getEnrichedGO <- function(pwf, gene2cat=FALSE, shorten_term=TRUE, ...){
 # Output  : The input obj + a column with estimated adjusted over-representation for each term ($adj_over_rep)
 # ------------------------------------------------------------------------------------------------------------------------
 
-addAdjustedOverRep <- function(obj, pwf, gene2cat, term_col="transcript_biotype", target_col="transcript_id"){
+addAdjustedOverRep <- function(obj, pwf, gene2cat, term_col, target_col){
   len_fore <- sum(pwf$DEgenes)
   len_back <- length(pwf$DEgenes)
 
