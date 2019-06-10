@@ -94,6 +94,7 @@ print_summaries <- function(features_df, master_protein_col, message){
 # Output: Filtered PD results
 # ----------------------------------------------------------------------------------------------------------------------
 parse_features <- function(infile,
+                           sep="\t",
                            master_protein_col="Master.Protein.Accessions",
                            protein_col="Protein.Accessions",
                            unique_master=TRUE,
@@ -107,7 +108,7 @@ parse_features <- function(infile,
     stop("level must be PSM or peptide")
   }
   
-  features_df <- read.delim(infile,  header=T, stringsAsFactors=FALSE)
+  features_df <- read.delim(infile,  sep=sep, header=T, stringsAsFactors=FALSE)
   cat("Tally of features at each stage:\n")
   
   print_summaries(features_df, master_protein_col, "All features")
@@ -125,8 +126,8 @@ parse_features <- function(infile,
     
     if(filter_associated_crap){
       associated_crap <- features_df %>%
-        filter(grepl("cRAP", UQ(as.name("Protein.Accessions")))) %>%
-        pull(UQ(as.name("Protein.Accessions"))) %>%
+        filter(grepl("cRAP", UQ(as.name(protein_col)))) %>%
+        pull(UQ(as.name(protein_col))) %>%
         strsplit("; ") %>%
         unlist()
       associated_crap <- associated_crap[!grepl("cRAP", associated_crap)]
@@ -138,8 +139,10 @@ parse_features <- function(infile,
     if(filter_associated_crap){
       cat(sprintf("Identified an additional %s proteins as 'cRAP associated'\n", length(associated_crap)))
 
-      features_df <- features_df %>% filter(!grepl(paste(associated_crap, collapse="|"), UQ(as.name(protein_col))))
-      print_summaries(features_df, master_protein_col, "Excluding features associated with a cRAP protein")
+      if(length(associated_crap)>0){
+        features_df <- features_df %>% filter(!grepl(paste(associated_crap, collapse="|"), UQ(as.name(protein_col))))
+        print_summaries(features_df, master_protein_col, "Excluding features associated with a cRAP protein")
+      }
     }
     
   }
