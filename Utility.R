@@ -140,7 +140,11 @@ parse_features <- function(infile,
       cat(sprintf("Identified an additional %s proteins as 'cRAP associated'\n", length(associated_crap)))
 
       if(length(associated_crap)>0){
-        features_df <- features_df %>% filter(!grepl(paste(associated_crap, collapse="|"), UQ(as.name(protein_col))))
+        # remove isoforms
+        associated_crap_no_isoform <- unique(sapply(strsplit(associated_crap, "-"), "[[", 1))
+        associated_crap_regex <- paste(associated_crap_no_isoform, collapse="|")
+        
+        features_df <- features_df %>% filter(!grepl(associated_crap_regex, UQ(as.name(protein_col))))
         print_summaries(features_df, master_protein_col, "Excluding features associated with a cRAP protein")
       }
     }
@@ -148,7 +152,8 @@ parse_features <- function(infile,
   }
 
   if(silac|TMT & level=="peptide"){
-    features_df <- features_df %>% filter(Quan.Info!="")
+    print(table(features_df$Quan.Info))
+    features_df <- features_df %>% filter(Quan.Info!="No Quan Values")
     print_summaries(features_df, master_protein_col, "Excluding features without quantification")
   }
   return(features_df)
@@ -284,15 +289,14 @@ agg_to_peptide_mod <- function(obj, gb=NULL, mod_col="Modifications", seq_col="S
   if(missing(gb)){
     gb <- paste(fData(obj)[[seq_col]], fData(obj)[[mod_col]])
   }
-  # we'll use our own aggregation function here to obtain the sum over all the unique peptide sequence + modification
-  
-  pep_agg <- combineFeatures(obj, groupBy=gb, fun=function(x) myAggFunction(x, FUN=fun))
+
+  pep_agg <- combineFeatures(obj, groupBy=gb, fun=function(x) myAggFunction(x, fun))
   pData(pep_agg) <- pData(obj)
   return(pep_agg)
 }
 
 
-agg_to_peptides <- function(obj, gb=NULL, seq_col="Sequence", fun=sum){
+agg_to_peptides <- function(obj, gb=NULL, seq_col="Sequence", fun="median"){
   
   # remove any "CV.Abundance" columns. Otherwise, combineFeatures will throw an error
   fData(obj) <- fData(obj)[,grep("CV.*", colnames(fData(obj)), invert=TRUE)]
@@ -301,24 +305,22 @@ agg_to_peptides <- function(obj, gb=NULL, seq_col="Sequence", fun=sum){
     gb <- fData(obj)[[seq_col]]
   }
   
-  # we'll use our own aggregation function here to obtain the sum over all the modified peptides
-  pep_agg <- combineFeatures(obj, groupBy=gb, fun=function(x) myAggFunction(x, FUN=fun))
+  pep_agg <- combineFeatures(obj, groupBy=gb, fun=fun, na.rm=TRUE)
   pData(pep_agg) <- pData(obj)
   return(pep_agg)
 }
 
 
-agg_to_protein <- function(obj, protein_col="Master.Protein.Accessions", gb=NULL, fun=median){
+agg_to_protein <- function(obj, protein_col="Master.Protein.Accessions", gb=NULL, fun="median"){
   
   if(missing(gb)){
     gb <- fData(obj)[[protein_col]]
   }
   
-  # remove any "CV.Abundance" columns. Otherwise, combineFeatures will throw an error
   fData(obj) <- fData(obj)[,grep("CV.*", colnames(fData(obj)), invert=TRUE)]
   
   # we'll use our own aggregation function here to obtain the median over all the peptides
-  pep_agg <- combineFeatures(obj, groupBy=gb, fun=function(x) myAggFunction(x, FUN=fun))
+  pep_agg <- combineFeatures(obj, groupBy=gb, fun=fun, na.rm=TRUE)
   pData(pep_agg) <- pData(obj)
   return(pep_agg)
 }
@@ -647,4 +649,55 @@ replace_missing_not_at_random <- function(obj, max_total_missing=10, min_sequent
   return(obj)
 }
 
-
+filterPSM <- function(psm,
+                      master_protein_col="Master.Protein.Accessions", # master protein column name
+                      SN_threshold=5, # Signal:noise threshold to retain PSM quantification values
+                      intensity_filter=2^2.25, # Minimum intensity value, e.g 2^2.25
+                      interference_threshold=50 # Maximum interference
+){
+  ####################################################
+  # Remove PSMs with Interference above threshold
+  ####################################################
+  cat("Removing PSMs with high interference (e.g co-isolation)\n")
+  psm_int <- psm[fData(psm)$Isolation.Interference.in.Percent<=interference_threshold,]
+  cat(sprintf("PSMs with co-isolation interference under threshold(%s): %s/%s\n",
+              round(interference_threshold, 2), length(rownames(psm_int)), length(rownames(psm))))
+  
+  cat(sprintf("Proteins retained = %s/%s\n",
+              length(unique(fData(psm_int)[[master_protein_col]])),
+              length(unique(fData(psm)[[master_protein_col]]))))
+  
+  ####################################################
+  # Remove PSMs with Signal:Noise (SN) below threshold
+  ####################################################
+  cat("Removing PSMs with low Signal:noise ratio\n")
+  psm_int_sn <- psm_int[fData(psm_int)$Average.Reporter.SN>=SN_threshold,]
+  cat(sprintf("PSMs with SN over threshold(%s): %s/%s\n",
+              round(SN_threshold, 2), length(rownames(psm_int_sn)), length(rownames(psm_int))))
+  
+  cat(sprintf("Proteins retained = %s/%s\n",
+              length(unique(fData(psm_int_sn)[[master_protein_col]])),
+              length(unique(fData(psm_int)[[master_protein_col]]))))
+  
+  ###################################################
+  # Remove low intensity estimates
+  ###################################################
+  cat("Replacing low intensity values with NA\n")
+  psm_int_sn_filter_low <- psm_int_sn
+  
+  #plotLabelQuant(psm_int_sn_filter_low, log=TRUE, print=FALSE)$p2 +
+  #  geom_vline(xintercept=intensity_filter) %>% print()
+  
+  p <- plotLabelQuant(psm_int_sn_filter_low, log=TRUE, print=FALSE)
+  print(p$p1)
+  print(p$p2 + geom_vline(xintercept=log2(intensity_filter)))
+  
+  exprs(psm_int_sn_filter_low)[exprs(psm_int_sn_filter_low)<intensity_filter] <- NA
+  
+  p <- plotLabelQuant(psm_int_sn_filter_low, log=TRUE, print=FALSE)$p2 +
+    geom_vline(xintercept=log2(intensity_filter))
+  
+  print(p)
+  
+  invisible(psm_int_sn_filter_low)
+}

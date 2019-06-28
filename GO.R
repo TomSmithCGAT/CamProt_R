@@ -60,7 +60,7 @@ determineOffspringFunction <- function(term, ontologies){
 # Named list where names=GO.IDs and values=all ancestor GO IDs
 ##################################################################################
 getAllMappings <- function(go_ids, ontologies, verbose=TRUE, direction="ancester"){
-  go2relations <- NULL
+  go2relations <- list()
   
   if(direction=="ancester"){
     determineFunction <- determineAncesterFunction
@@ -78,19 +78,20 @@ getAllMappings <- function(go_ids, ontologies, verbose=TRUE, direction="ancester
     print(sprintf("Getting all %s GO terms for %i observed terms. This may take a while!", direction, length(go_ids)))
     pb <- txtProgressBar(min = 0, max = length(go_ids), style=3)
   }
+  
   for (i in 1:length(go_ids)){
     query <- go_ids[i]
-    
+
     go_relations <- tryCatch(get(query, determineFunction(query, ontologies)), error = function(e) e)
     
     if(class(go_relations)=="character"){
-      go2relations[[go_ids[i]]] <- go_relations
+      go2relations[[query]] <- go_relations
     }
     else{
       if(verbose){
-        print(sprintf("Could not get %ss for GO.ID=%s", direction, query))
+        cat(sprintf("Could not get %ss for GO.ID=%s\n", direction, query))
       }
-      go2relations[[go_ids[i]]] <- c(NA)
+      go2relations[[query]] <- c(NA)
       
     }
     if(verbose){

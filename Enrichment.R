@@ -6,6 +6,7 @@ suppressMessages(library(mygene))
 suppressMessages(library(data.table))
 
 source("Utility.R")
+source("GO.R")
 
 # ------------------------------------------------------------------------------------------------------------
 # Function	: myProtMapper 
@@ -130,8 +131,6 @@ plotGOTerms <- function(GO_df, len_foreground=NULL, len_background=NULL,
   else{
     GO_df$enrichment <- GO_df[[enrichment_col]]
   }
-  
-  print(head(GO_df))
   
   GO_filtered_df <- GO_df[GO_df$BH < BH_filter,]
   GO_filtered_df <- GO_filtered_df[GO_filtered_df$enrichment > enrichment_filter,]
@@ -493,6 +492,67 @@ runGoseq <- function(genelist,bglist,bias=NULL,cat.oligo=NULL,signif=0.05,method
   
   return(list(goseq.comp.cat,enriched.goseq.comp.cat))
   
+}
+
+remove_redundant_GO_terms <- function(go_df){
+  
+  # identify all the GO terms
+  all_observed_go <- go_df %>%
+    dplyr::select(category, ontology) %>%
+    distinct() %>%
+    filter(!is.na(category))
+
+  all_observed_go_terms <- all_observed_go$category
+  
+  ontologies <- setNames(all_observed_go$ontology, all_observed_go_terms)
+
+  # Get the mappings from GO term to parent GO terms using functions in GO.R
+  go2Offspring <- getAllMappings(all_observed_go_terms, ontologies, verbose=FALSE, direction="offspring")
+  go2Ancesters <- getAllMappings(all_observed_go_terms, ontologies, verbose=FALSE, direction="ancester")
+  
+  # start with all observed GO terms being retained
+  retained <- all_observed_go_terms
+  
+  # We want to keep track of the GO IDs we have processed
+  processed <- NULL
+  
+  # If any GO term has no detected offspring or ancesters, mark them as already processed
+  # This will also mean they are always retained
+  no_anc_off <- setdiff(all_observed_go_terms, union(names(go2Ancesters), names(go2Offspring)))
+  if(length(no_anc_off)>0){
+    cat(sprintf("No offspring or ancesters could be found for these terms: %s", no_anc_off))
+    processed <- no_anc_off
+  }
+  
+  # When all observed go terms are in processed, stop while loop
+  while(length(setdiff(all_observed_go_terms, processed))!=0){
+    
+    # take one of the GO terms
+    go_id <- setdiff(all_observed_go_terms, processed)[1]
+    
+    # Find all the ancesters and offspring = go_tree
+    # (Only include those also observed as over-rep GO)
+    go_tree <- union(go2Ancesters[[go_id]], go2Offspring[[go_id]]) %>%
+      intersect(all_observed_go_terms) %>% c(go_id)
+    
+    top_go <- go_df %>%
+      filter(category %in% go_tree) %>% # subset to the terms in go_tree
+      arrange(over_represented_pvalue) %>% # order by p-value (ascending by default)
+      pull(category) %>%# pull out the category
+      head(1) # keep the top GO term
+    
+    # We want to remove all ancester and offspring terms within the go_tree for the top GO term
+    terms_to_remove <- union(go2Ancesters[[top_go]], go2Offspring[[top_go]]) %>%
+      intersect(go_tree)
+    
+    processed <- union(processed, go_tree) # all terms in the tree are now considered "processed"
+    
+    retained <- setdiff(retained, terms_to_remove) # remove the unwanted terms from retained
+  }
+  
+  go_df <- go_df %>% filter(category %in% retained) # subset to the retained terms
+  
+  return(go_df)
 }
 
 
