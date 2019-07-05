@@ -9,12 +9,16 @@ suppressMessages(library(tidyr))
 suppressMessages(library(MSnbase))
 suppressMessages(library(robustbase))
 
-my_theme <- theme_bw() + theme(
+my_theme_box <- theme_bw() + theme(
   text=element_text(size=20,  family="serif"),
   panel.grid=element_blank(), aspect.ratio=1,
+  panel.background = element_blank())
+
+my_theme_no_box <- my_theme_box + theme(
   panel.border = element_blank(),
-  panel.background = element_blank(),
   axis.line = element_line(colour = "black"))
+
+my_theme <- my_theme_no_box
 
 cbPalette <- c("#999999", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
 
@@ -653,46 +657,67 @@ filterPSM <- function(psm,
                       master_protein_col="Master.Protein.Accessions", # master protein column name
                       SN_threshold=5, # Signal:noise threshold to retain PSM quantification values
                       intensity_filter=2^2.25, # Minimum intensity value, e.g 2^2.25
-                      interference_threshold=50 # Maximum interference
+                      interference_threshold=50, # Maximum interference
+                      int_column="Isolation.Interference.in.Percent",
+                      sn_column="Average.Reporter.SN"
+                      
 ){
   ####################################################
   # Remove PSMs with Interference above threshold
   ####################################################
-  cat("Removing PSMs with high interference (e.g co-isolation)\n")
-  psm_int <- psm[fData(psm)$Isolation.Interference.in.Percent<=interference_threshold,]
-  cat(sprintf("PSMs with co-isolation interference under threshold(%s): %s/%s\n",
-              round(interference_threshold, 2), length(rownames(psm_int)), length(rownames(psm))))
-  
-  cat(sprintf("Proteins retained = %s/%s\n",
-              length(unique(fData(psm_int)[[master_protein_col]])),
-              length(unique(fData(psm)[[master_protein_col]]))))
+  if(!is.null(interference_threshold)){
+    cat("Removing PSMs with high interference (e.g co-isolation)\n")
+
+    psm_int <- psm[!is.na(fData(psm)[[int_column]]),]
+    psm_int <- psm_int[fData(psm_int)[[int_column]]<=interference_threshold,]
+    
+    cat(sprintf("PSMs with co-isolation interference under threshold(%s): %s/%s\n",
+                round(interference_threshold, 2), length(rownames(psm_int)), length(rownames(psm))))
+    
+    cat(sprintf("Proteins retained = %s/%s\n",
+                length(unique(fData(psm_int)[[master_protein_col]])),
+                length(unique(fData(psm)[[master_protein_col]]))))
+  }
+  else{
+    psm_int <- psm
+  }
+
   
   ####################################################
   # Remove PSMs with Signal:Noise (SN) below threshold
   ####################################################
-  cat("Removing PSMs with low Signal:noise ratio\n")
-  psm_int_sn <- psm_int[fData(psm_int)$Average.Reporter.SN>=SN_threshold,]
-  cat(sprintf("PSMs with SN over threshold(%s): %s/%s\n",
-              round(SN_threshold, 2), length(rownames(psm_int_sn)), length(rownames(psm_int))))
-  
-  cat(sprintf("Proteins retained = %s/%s\n",
-              length(unique(fData(psm_int_sn)[[master_protein_col]])),
-              length(unique(fData(psm_int)[[master_protein_col]]))))
-  
+  if(!is.null(SN_threshold)){
+    cat("Removing PSMs with low Signal:noise ratio\n")
+    psm_int_sn <- psm_int[fData(psm_int)[[sn_column]]>=SN_threshold,]
+    cat(sprintf("PSMs with SN over threshold(%s): %s/%s\n",
+                round(SN_threshold, 2), length(rownames(psm_int_sn)), length(rownames(psm_int))))
+    
+    cat(sprintf("Proteins retained = %s/%s\n",
+                length(unique(fData(psm_int_sn)[[master_protein_col]])),
+                length(unique(fData(psm_int)[[master_protein_col]]))))
+  }
+  else{
+    psm_int_sn <- psm_int
+  }
   ###################################################
   # Remove low intensity estimates
   ###################################################
-  cat("Replacing low intensity values with NA\n")
-  psm_int_sn_filter_low <- psm_int_sn
-  
-  #plotLabelQuant(psm_int_sn_filter_low, log=TRUE, print=FALSE)$p2 +
-  #  geom_vline(xintercept=intensity_filter) %>% print()
-  
-  p <- plotLabelQuant(psm_int_sn_filter_low, log=TRUE, print=FALSE)
-  print(p$p1)
-  print(p$p2 + geom_vline(xintercept=log2(intensity_filter)))
-  
-  exprs(psm_int_sn_filter_low)[exprs(psm_int_sn_filter_low)<intensity_filter] <- NA
+  if(!is.null(intensity_filter)){
+    cat("Replacing low intensity values with NA\n")
+    psm_int_sn_filter_low <- psm_int_sn
+    
+    #plotLabelQuant(psm_int_sn_filter_low, log=TRUE, print=FALSE)$p2 +
+    #  geom_vline(xintercept=intensity_filter) %>% print()
+    
+    p <- plotLabelQuant(psm_int_sn_filter_low, log=TRUE, print=FALSE)
+    print(p$p1)
+    print(p$p2 + geom_vline(xintercept=log2(intensity_filter)))
+    
+    exprs(psm_int_sn_filter_low)[exprs(psm_int_sn_filter_low)<intensity_filter] <- NA
+  }
+  else{
+    psm_int_sn_filter_low <- psm_int_sn
+  }
   
   p <- plotLabelQuant(psm_int_sn_filter_low, log=TRUE, print=FALSE)$p2 +
     geom_vline(xintercept=log2(intensity_filter))
