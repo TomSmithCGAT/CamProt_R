@@ -502,7 +502,7 @@ checkParams <- function(res_with_markers, ml_method=svmOptimisation,
   }
   else{
     params <- ml_method(res_with_markers, fcol=fcol, times=times,
-                        verbose=T, class.weights=classWeights(res_with_markers), ...)
+                        verbose=T, class.weights=classWeights(res_with_markers, fcol=fcol), ...)
   }
   sink()
   
