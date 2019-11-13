@@ -72,8 +72,6 @@ PlotProteinProfiles <- function(res){
     xlab("") + ylab("norm. abundance") + 
     scale_colour_discrete(name="", na.value="grey")
   
-  print(p)
-  
   return(p)
 }
 
@@ -81,8 +79,12 @@ PlotProteinProfiles <- function(res){
 # Function	: PlotMarkerProfiles 
 # ------------------------------------------------------------------------------------------------------------
 
-PlotMarkerProfiles <- function(res, fcol="master_protein", keep_markers=c("CYTOSOL"), unknown=F, plot_all=T,
-                               individual_plots=F, foi=NULL, organelle_order=NULL, alpha=0.25){
+PlotMarkerProfiles <- function(res, fcol="master_protein",
+                               keep_markers=c("CYTOSOL"),
+                               unknown=F, plot_all=T,
+                               individual_plots=F, foi=NULL,
+                               organelle_order=NULL, alpha=0.25,
+                               foi_alpha=1){
   
   
   exprs_df <- exprs(res)
@@ -141,7 +143,9 @@ PlotMarkerProfiles <- function(res, fcol="master_protein", keep_markers=c("CYTOS
     exprs_df <- data.frame(exprs_df)
     features_df <- exprs_df[exprs_df$Var1 %in% foi,]
     #if(plot_all){
-    p <- p + geom_line(data=features_df, aes(Var2, value, group=Var1), colour="black", alpha=alpha)
+    p <- p + geom_line(data=features_df,
+                       aes(factor(Var2), value, group=Var1),
+                       colour="black", alpha=foi_alpha)
     #}
     #else{
     #p <- p + stat_summary(data=features_df, aes(Var2, value), group="1",
@@ -363,7 +367,7 @@ make_proj <- function(method="PCA", res, fcol="markers", dims=c(1,2), ...){
   PCA_df <- PCA_matrix %>% merge(data.frame(fData(res)), by="row.names")
   PCA_df$markers <- PCA_df[[fcol]]
   PCA_df$unknown <- PCA_df$markers=="unknown"
-  PCA_df$markers[PCA_df$unknown] <- NA
+  #PCA_df$markers[PCA_df$unknown] <- NA
   PCA_df <- PCA_df[order(-PCA_df$unknown),]
   return(list("PCA_df"=PCA_df, "axes"=axes))
 }
@@ -372,33 +376,46 @@ LOPITPCAPlotter <- function(...){
   LOPITPlotter(...)
 }
 
-LOPITPlotter <- function(PCA_df, axes, xlims=FALSE, ylims=FALSE, foi=FALSE, add_foi_names=FALSE,
-                         just_markers=FALSE, m_colours=FALSE, re_order_markers=FALSE, marker_levels=NULL,
-                         title=FALSE, fcol=FALSE, point_size=FALSE, foi_size=1, foi_alpha=1, foi_shape=8,
-                         foi_colour="black", foi_fill="black", return_proj=FALSE, cex=1, add_density=FALSE){
+
+LOPITPlotter <- function(
+  PCA_df, axes, xlims=FALSE, ylims=FALSE, foi=FALSE, add_foi_names=FALSE,
+  just_markers=FALSE, m_colours=FALSE, re_order_markers=FALSE, marker_levels=NULL,
+  title=FALSE, fcol=FALSE, point_size=FALSE, foi_size=1, foi_alpha=1, foi_shape=8,
+  foi_colour="black", foi_fill="black", return_proj=FALSE, cex=1, add_density=FALSE,
+  unknown_name="unknown", unknown_colour="grey70", show_unknown=TRUE){
   
   if(!missing(fcol)){
     # remake marker column
     PCA_df$markers <- PCA_df[[fcol]]
-    PCA_df$markers <- PCA_df[[fcol]]
     PCA_df$unknown <- PCA_df$markers=="unknown"
-    PCA_df$markers[PCA_df$unknown] <- NA
+    PCA_df$markers[PCA_df$unknown] <- unknown_name
     PCA_df <- PCA_df[order(-PCA_df$unknown),]
+  }
+  else{
+    PCA_df$unknown <- PCA_df$markers=="unknown"
+    PCA_df$markers[PCA_df$unknown] <- unknown_name
   }
   
   if(re_order_markers!=FALSE){
-    PCA_df$markers <- factor(PCA_df$markers, levels=marker_levels)
+    marker_levels <- setdiff(marker_levels, unknown_name)
+    PCA_df$markers <- factor(
+      PCA_df$markers, levels=c(marker_levels, unknown_name))
+  }
+  else{
+    PCA_df$markers <- factor(
+      PCA_df$markers,
+      levels=c(setdiff(unique(PCA_df$markers), unknown_name), unknown_name))
   }
   
   plots = NULL
   if(m_colours==FALSE){
-    m_colours <- getStockcol()[c(1:5,12,7:11,13:20)]
+    m_colours <- getStockcol()[c(1:5,12,7:11,13:20)][
+      1:length(setdiff(unique(PCA_df$markers), unknown_name))]
   }
   p <- ggplot(PCA_df) +
     geom_point(aes(X, Y, colour=markers, alpha=unknown), size=cex) +
     scale_alpha_manual(values=c(0.5,0.1), guide=F) +
-    #scale_colour_manual(values=rep("#E41A1C70", 12), na.value="grey95") +
-    scale_colour_manual(values=m_colours, na.value="grey80", name="") +
+
     my_theme + xlab(axes[1]) + ylab(axes[2])
 
   if(!missing(point_size)){
@@ -406,6 +423,14 @@ LOPITPlotter <- function(PCA_df, axes, xlims=FALSE, ylims=FALSE, foi=FALSE, add_
       scale_size_area(guide=F, max_size=2)
     print(p)
   }
+  
+  if(show_unknown){
+    p <- p + scale_colour_manual(
+      values=c(m_colours,  unknown_colour), name="")}
+  else{
+    p <- p + scale_colour_manual(
+      values=c(m_colours,  unknown_colour), name="",
+      breaks = setdiff(levels(PCA_df$markers), unknown_name))}
   
   if(!missing(title)){
     p <- p + ggtitle(title)

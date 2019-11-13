@@ -454,15 +454,6 @@ parsePSMAndAggregate <- function(
   # Aggregate to unique peptide sequence + modifications
   ######################################################
   cat("Aggregating to unique peptide sequence + modifications\n")
-  print(raw_res_sn_filter_low_cm_norm)
-  print(max(length(fData(raw_res_sn_filter_low_cm_norm)[[mod_col]])))
-  print(fData(raw_res_sn_filter_low_cm_norm))
-  
-  print(head(fData(raw_res_sn_filter_low_cm_norm)[["Sequence"]]))
-  print(head(fData(raw_res_sn_filter_low_cm_norm)[["Modifications"]]))
-  print(mod_col)
-  print(head(fData(raw_res_sn_filter_low_cm_norm)[[mod_col]]))
-  print(head(fData(raw_res_sn_filter_low_cm_norm)))
   
   agg_pep_mod <- agg_to_peptide_mod(raw_res_sn_filter_low_cm_norm, mod_col=mod_col)
   
