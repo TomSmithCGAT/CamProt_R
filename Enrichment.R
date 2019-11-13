@@ -314,20 +314,20 @@ makePWF <- function(df, sig_col, bias_col, identifier_col){
   sig_genes <- df[[sig_col]]==TRUE
   
   names(sig_genes) <- df[[identifier_col]]
-  print(sum(sig_genes))
   
-  pwf.counts=nullp(sig_genes, bias.data=bias, plot.fit = F)
+  pwf.counts=nullp(sig_genes, bias.data=bias, plot.fit = FALSE)
+
   return(pwf.counts)
 }
 
 
-makePWFPlot <- function(pwf.counts, bias.data_col='bias.data', bins=20, xlab, spline=T){
+makePWFPlot <- function(pwf.counts, bias.data_col='bias.data',
+                        bins=20, xlab, spline=T){
   
   pwf.counts <- pwf.counts[order(pwf.counts[[bias.data_col]]),]
   pwf.counts$DEgenes <- as.numeric(pwf.counts$DEgenes)
   
   if(bins>0){
-    print("not missing bins")
     pwf.counts$bin <- as.numeric(as.character(cut2(pwf.counts[[bias.data_col]], g = bins, levels.mean = T)))
   }
   else{
@@ -377,7 +377,11 @@ getEnrichedGO <- function(pwf, gene2cat=FALSE, shorten_term=TRUE, ...){
 addAdjustedOverRep <- function(obj, pwf, gene2cat, term_col, target_col){
   len_fore <- sum(pwf$DEgenes)
   len_back <- length(pwf$DEgenes)
-
+  
+  obj$over_rep <- apply(obj[,c("numDEInCat", "numInCat", "category")], MARGIN=1, function(x){
+    term_features <- gene2cat[gene2cat[[term_col]]==x[["category"]], target_col]
+    as.numeric(x[['numDEInCat']])/as.numeric(x[['numInCat']]) / (len_fore/len_back)})
+  
   obj$adj_over_rep <- apply(obj[,c("numDEInCat", "numInCat", "category")], MARGIN=1, function(x){
     term_features <- gene2cat[gene2cat[[term_col]]==x[["category"]], target_col]
     term_weight <- mean(pwf[rownames(pwf) %in% term_features, "pwf"])
@@ -564,10 +568,10 @@ remove_redundant_GO_terms <- function(go_df){
 # Output    :
 # ------------------------------------------------------------------------
 
-mymakespline=function (x, y, newX=NULL, nKnots = 6, lower_bound=10^-3){
+mymakespline <- function (x, y, newX=NULL, nKnots = 6, lower_bound=10^-3){
   # TS:this is a direct copy of the goseq function. Seems this function only works for
   # some input data when we generate x,y ourselves!
-  
+  require(mgcv)
   #Should not be used outside of goseq package.  Refer to the help pages for pcls in the mgcv package for more general 
   #contstrained spline fitting.
   #We handle montonocily decreasing problems by reformulating them as monotonicly increasing by reflecting about "infinity"
@@ -634,6 +638,27 @@ mymakespline=function (x, y, newX=NULL, nKnots = 6, lower_bound=10^-3){
   return(fv)
 }
 
+mynullp <- function (DEgenes, genome, id, bias.data = NULL, plot.fit = TRUE, ...) 
+{
+  if (!is.null(bias.data) & length(bias.data) != length(DEgenes)) {
+    stop("bias.data vector must have the same length as DEgenes vector!")
+  }
+  bias.data = unfactor(bias.data)
+  DEgenes = unfactor(DEgenes)
+  if (is.null(bias.data)) {
+    bias.data = getlength(names(DEgenes), genome, id)
+  }
+  pwf = rep(NA, length(DEgenes))
+  w = !is.na(bias.data)
+  pwf[w] = mymakespline(bias.data[w], DEgenes[w], ...)
+  out = data.frame(DEgenes = DEgenes, bias.data = bias.data, 
+                   pwf = pwf, stringsAsFactors = FALSE)
+  rownames(out) = names(DEgenes)
+  if (plot.fit) {
+    plotPWF(out)
+  }
+  out
+}
 
 
 
