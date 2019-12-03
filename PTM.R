@@ -312,6 +312,33 @@ parsePSMAndAggregate <- function(
     print(data %>% group_by(.dots=lapply(modifications, as.symbol)) %>% tally())
   }
   
+  ImputeMissing <- function(obj, missing=1, method="knn", k=10){
+    exprs(obj)[exprs(obj)==0]<- NA
+    cat(sprintf("Discarding %s entries with more than %s missing values",
+                sum(rowSums(is.na(exprs(obj)))>missing), missing))
+    print(dim(obj))
+    obj <- obj[rowSums(is.na(exprs(obj)))<=missing,]
+    print(dim(obj))
+    
+    proteins_with_imputation <- rownames(obj[rowSums(is.na(exprs(obj)))>0,])
+    print(length(proteins_with_imputation))
+    
+    if(method=="na"){
+      obj_impute <- obj
+    }
+    else{
+      sink("/dev/null")
+      obj_impute <- suppressWarnings(impute(obj, method=method))
+      sink()
+    }
+    
+    fData(obj_impute)$imputed <- ifelse(rownames(obj_impute) %in% proteins_with_imputation, "Imputed", "Not imputed")
+    print(table(fData(obj_impute)$imputed))
+    
+    invisible(obj_impute)
+  }
+  
+  
   plots <- list()
   datasets <- list()
   descriptions <- list()

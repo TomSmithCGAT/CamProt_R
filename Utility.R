@@ -189,7 +189,7 @@ makeMSNSet <- function(obj, samples_inf, ab_col_ix=3, level="peptide", quant_nam
     }
   else if(level=="peptide"){
     abundance_columns <- colnames(obj)[grep(sprintf('%s.*', quant_name), colnames(obj))]
-    abundance_columns <- abundance_columns[grep(sprintf('%s.Count', quant_name), abundance_columns, invert=TRUE)]
+    abundance_columns <- abundance_columns[grep(sprintf('%s.*Count', quant_name), abundance_columns, invert=TRUE)]
     renamed_abundance_columns <- sapply(strsplit(abundance_columns, "\\."), "[[", ab_col_ix)
   }
   else{
@@ -232,7 +232,7 @@ plotMissing <- function(obj, verbose=TRUE, ...){
     print(table(rowSums(missing==0)))
   }
   
-  if(length(rownames(missing))>0){
+  if(length(rownames(missing))>1){
     missing_twice <- missing[rowSums(missing==0)>1,]
     
     if(verbose){
