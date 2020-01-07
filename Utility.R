@@ -37,6 +37,13 @@ print_summaries <- function(features_df, master_protein_col, message){
   print_n_prot(features_df, master_protein_col)
 }
 
+removeCrap <- function(obj, protein_col="Protein.Accessions"){
+  cat(sprintf("Input data: %s rows\n", nrow(obj)))
+  obj <- obj %>% filter(!grepl("cRAP", !!as.symbol(protein_col), ignore.case=FALSE))
+  cat(sprintf("Output data: %s rows\n", nrow(obj)))
+  return(obj)
+}
+
 # Steps are:
 # 1. Filter modifications
 # 2. Center-median normalise PSM
@@ -93,6 +100,8 @@ print_summaries <- function(features_df, master_protein_col, message){
 #    TMT: [DEFAULT=FALSE] TMT experiment
 #    level: [REQUIRED; DEFAULT="peptide"] Input level. Must be "peptide" or "PSM
 #    filter_crap: [DEFAULT=TRUE] Filter out the features which match a cRAP protein
+#    crap_fasta: [DEFAULT=NULL] Fasta file containing the cRAP proteins. Expects fasta header format thusly
+#    >sp|cRAP002|P02768|ALBU_HUMAN Serum albumin OS=Homo sapiens GN=ALB PE=1 SV=2, e.g Uniprot in 3rd position ('|' delimited)
 #    filter_associated_crap: [DEFAULT=TRUE] Filter out the features which match a cRAP associated protein
 #
 # Output: Filtered PD results
@@ -106,6 +115,7 @@ parse_features <- function(infile,
                            TMT=FALSE,
                            level="peptide",
                            filter_crap=TRUE,
+                           crap_fasta=NULL,
                            filter_associated_crap=TRUE){
   
   if(!level %in% c("PSM", "peptide")){
@@ -113,6 +123,7 @@ parse_features <- function(infile,
   }
   
   features_df <- read.delim(infile,  sep=sep, header=T, stringsAsFactors=FALSE)
+
   cat("Tally of features at each stage:\n")
   
   print_summaries(features_df, master_protein_col, "All features")
@@ -120,24 +131,40 @@ parse_features <- function(infile,
   features_df <- features_df %>% filter(UQ(as.name(master_protein_col))!="")
   print_summaries(features_df, master_protein_col, "Excluding features without a master protein")
   
-  if(unique_master){
-    features_df <- features_df %>% filter(Number.of.Protein.Groups==1)
-    print_summaries(
-      features_df, master_protein_col, "Excluding features without a unique master protein")
-  }
-  
   if(filter_crap){
+    
+    if(is.null(crap_fasta)){
+      stop('must supply the crap fasta argument to filter cRAP proteins')
+    }
+    
+    con <- file(crap_fasta, open="r")
+    lines <- readLines(con)
+    
+    #print(lines %>% strsplit(split="\\|"))
+    crap_proteins <- lines %>% strsplit("\\|") %>% lapply(function(x){
+      if(substr(x[[1]],1,1)!=">"){
+        return()
+      }
+      else{
+        return(x[[3]])
+      }
+    }) %>% unlist()
+    
+    close(con)
     
     if(filter_associated_crap){
       associated_crap <- features_df %>%
-        filter(grepl("cRAP", UQ(as.name(protein_col)))) %>%
+        filter((UQ(as.name(master_protein_col)) %in% crap_proteins)|
+                 grepl("cRAP", !!as.symbol(protein_col), ignore.case=FALSE)) %>%
         pull(UQ(as.name(protein_col))) %>%
         strsplit("; ") %>%
         unlist()
       associated_crap <- associated_crap[!grepl("cRAP", associated_crap)]
+    
     }
 
-    features_df <- features_df %>% filter(!grepl("cRAP", UQ(as.name(protein_col))))
+    features_df <- features_df %>% filter(!UQ(as.name(master_protein_col)) %in% crap_proteins,
+                                          !grepl("cRAP", !!as.symbol(protein_col), ignore.case=FALSE))
     print_summaries(features_df, master_protein_col, "Excluding features matching a cRAP protein")
     
     if(filter_associated_crap){
@@ -147,7 +174,6 @@ parse_features <- function(infile,
         # remove isoforms
         associated_crap_no_isoform <- unique(sapply(strsplit(associated_crap, "-"), "[[", 1))
         associated_crap_regex <- paste(associated_crap_no_isoform, collapse="|")
-        
         features_df <- features_df %>% filter(!grepl(associated_crap_regex, UQ(as.name(protein_col))))
         print_summaries(features_df, master_protein_col, "Excluding features associated with a cRAP protein")
       }
@@ -155,6 +181,13 @@ parse_features <- function(infile,
     
   }
 
+  if(unique_master){
+    features_df <- features_df %>% filter(Number.of.Protein.Groups==1)
+    print_summaries(
+      features_df, master_protein_col, "Excluding features without a unique master protein")
+  }
+  
+  
   if(silac|TMT & level=="peptide"){
     print(table(features_df$Quan.Info))
     features_df <- features_df %>% filter(Quan.Info!="No Quan Values")
@@ -163,12 +196,7 @@ parse_features <- function(infile,
   return(features_df)
 }
 
-removeCrap <- function(obj, protein_col="Protein.Accessions"){
-  cat(sprintf("Input data: %s rows\n", nrow(obj)))
-  obj <- obj %>% filter(!grepl("cRAP", !!as.symbol(protein_col), ignore.case=FALSE))
-  cat(sprintf("Output data: %s rows\n", nrow(obj)))
-  return(obj)
-}
+
 
 summariseMissing <- function(res){
   cat("\ntallies for missing data (# samples with missing)")
