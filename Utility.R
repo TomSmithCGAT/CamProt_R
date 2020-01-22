@@ -222,17 +222,19 @@ plotMissing <- function(obj, verbose=TRUE, ...){
   exprs(tmp_obj)[is.na(exprs(tmp_obj))] <- 0
   
   missing <- exprs(tmp_obj)
-  missing <- missing[rowSums(missing==0)>0,] # identify features without missing values
-  
+
+  missing <- missing[rowSums(missing==0)>0,,drop=FALSE] # identify features with missing values
+
   if(verbose){
     cat(sprintf("Out of %s total features, %s (%s%%) have missing values\n",
                 length(rownames(exprs(tmp_obj))), length(rownames(missing)),
                 round(100*length(rownames(missing))/length(rownames(exprs(tmp_obj))),3)))
-    
-    print(table(rowSums(missing==0)))
+    if(nrow(missing)>1){
+      print(table(rowSums(missing==0)))
+    }
   }
-  
-  if(length(rownames(missing))>0){
+
+  if(nrow(missing)>1){
     missing_twice <- missing[rowSums(missing==0)>1,]
     
     if(verbose){
