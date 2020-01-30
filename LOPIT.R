@@ -17,7 +17,7 @@ getClassColours <- function(){
 }
 
 organelle_order <- c("CYTOSOL", "Cytosol", "PROTEASOME", "PROTEASOME 19S", "PROTEASOME 20S", "mRNP", "RIBOSOME", "RIBOSOME 40S", "RIBOSOME 60S",
-                     "er", "ER", "GOLGI", "GA", "LYSOSOME", "PM", "PEROXISOME", "MITOCHONDRION", "MITOCHONDRIA", "Mitochondria",
+                     "er", "ER", "GOLGI", "GA", "GOLGI/LYSOSOME", "LYSOSOME", "PM", "PEROXISOME", "MITOCHONDRION", "MITOCHONDRIA", "Mitochondria",
                      "Mitochondrion", "NUCLEUS/CHROMATIN", "NUCLEUS", "Nuclear", "NUCLEUS-CHROMATIN", "CHROMATIN",
                      "unknown", "missing")
 
@@ -33,6 +33,8 @@ organelle2colour <- list("CYTOSOL"="#E41A1C",
                          "ER"="#FF7F00",
                          "er"="#FF7F00",
                          "GOLGI"="#377EB8",
+                         "GOLGI/LYSOSOME"="#377EB8",
+                         "Golgi/Lysosome"="#377EB8",
                          "GA"="#377EB8",
                          "LYSOSOME"="#F781BF",
                          "PM"="#00CED1",
