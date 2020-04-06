@@ -28,7 +28,7 @@ getSequenceToProtein <- function(data, prot_col='Protein.Accessions'){
   s2p <- NULL
   for(n in n_seq_per_protein_values){
     
-    if(length(sequences_to_account_for)==0){
+    if(length(sequences_left_to_account_for)==0){
       break()
     }
     
