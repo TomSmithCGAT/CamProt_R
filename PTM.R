@@ -140,7 +140,7 @@ addPTMPositions <- function(obj, proteome_fasta, master_protein_col="Master.Prot
     }
     return_string <- NULL
     
-    if(length(proteins)>1){
+    if(length(strsplit(protein, '; ')[[1]])>1){
       return("")
     }
     
@@ -161,6 +161,43 @@ addPTMPositions <- function(obj, proteome_fasta, master_protein_col="Master.Prot
   obj$ptm_position <- apply(
     obj, MARGIN=1, function(x) combine_peptide_ptm_positions(
       proteome, x[[master_protein_col]], x[["Sequence"]], x[["filtered_pos"]]))
+  
+  return(obj)
+}
+
+
+addPeptidePositions <- function(obj, proteome_fasta, master_protein_col="Master.Protein.Accessions"){
+  
+  proteome <- readAAStringSet(proteome_fasta)
+  names(proteome) <- sapply(base::strsplit(names(proteome), split="\\|") , "[[", 2)
+  
+  combine_peptide_ptm_positions <- function(proteome, protein, sequence){
+    # Given a master protein(s) and AA sequence,
+    # return the AA position with respect to protein sequence
+    # If more than one position, possible, return NA
+  
+    if(length(strsplit(protein, '; ')[[1]])>1){
+      return(c(NA, NA))
+    }
+    
+    peptide_start <- start(matchPattern(sequence, proteome[[protein]]))
+    peptide_end <- end(matchPattern(sequence, proteome[[protein]]))
+    
+    if(length(peptide_start)!=1){
+      return(c(NA, NA))
+    }
+    
+    else{
+      return(c(peptide_start, peptide_end))
+    }
+  }
+
+  obj[,c('peptide_start', 'peptide_end')] <- t(apply(
+    obj, MARGIN=1, function(x) combine_peptide_ptm_positions(
+      proteome, x[[master_protein_col]], x[["Sequence"]])))
+  
+  obj$peptide_start <- as.numeric(obj$peptide_start)
+  obj$peptide_end <- as.numeric(obj$peptide_end)
   
   return(obj)
 }
