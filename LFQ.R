@@ -150,11 +150,11 @@ getParsimonyPepToProt <- function(infiles, prot_col='Protein.Accessions', verbos
   data_plus_new_master <- data %>% merge(new_seq_to_master, by='Sequence')
   
   if(verbose){
-    sprintf('With original assignments, %s master proteins. With update, %s master proteins',
-            length(unique(data_plus_new_master$Master.Protein.Accessions)),
-            length(unique(data_plus_new_master$Updated.Master.Protein.Accessions)))
+   cat(sprintf('With original assignments, %s master proteins. With update, %s master proteins\n',
+               length(unique(data_plus_new_master$Master.Protein.Accessions)),
+               length(unique(data_plus_new_master$Updated.Master.Protein.Accessions))))
     print(compareSequencesPerProtein(data_plus_new_master))
-    cat('Comparing Master Protein IDs')
+    cat('Comparing Master Protein IDs\n')
     compareIDs(data_plus_new_master)
     compareSingleMaster(data_plus_new_master)
   }
