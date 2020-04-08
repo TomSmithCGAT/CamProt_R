@@ -150,9 +150,11 @@ getParsimonyPepToProt <- function(infiles, prot_col='Protein.Accessions', verbos
   data_plus_new_master <- data %>% merge(new_seq_to_master, by='Sequence')
   
   if(verbose){
-   cat(sprintf('With original assignments, %s master proteins. With update, %s master proteins\n',
+
+    cat(sprintf('With original assignments, %s master proteins. With update, %s master proteins\n',
                length(unique(data_plus_new_master$Master.Protein.Accessions)),
                length(unique(data_plus_new_master$Updated.Master.Protein.Accessions))))
+    
     print(compareSequencesPerProtein(data_plus_new_master))
     cat('Comparing Master Protein IDs\n')
     compareIDs(data_plus_new_master)
@@ -162,3 +164,22 @@ getParsimonyPepToProt <- function(infiles, prot_col='Protein.Accessions', verbos
   invisible(new_seq_to_master)
 }
 
+
+#From an MsnSet with peptide level 
+removeLowSampleFeatures <- function(obj, min_samples, plot=TRUE){
+  
+  if(plot){
+    p <- data.frame(table(rowSums(is.finite(exprs(obj))))) %>%
+      mutate(Var1=factor(Var1, levels=rev(levels(Var1)))) %>%
+      ggplot(aes(x=1, y=Freq, fill=Var1)) +
+      geom_bar(stat='identity') +
+      theme_bw() +
+      scale_fill_discrete(name='# samples') +
+      ylab('Frequency') +
+      theme(aspect.ratio=4, axis.text.x=element_blank(), axis.ticks.x=element_blank(), axis.title.x=element_blank())
+    
+    print(p)
+  }
+  
+  invisible(filterNA(obj, pNA=((ncol(obj)-min_samples)/ncol(obj))))
+}

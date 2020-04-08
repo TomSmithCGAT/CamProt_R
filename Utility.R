@@ -8,6 +8,7 @@ suppressMessages(library(dplyr))
 suppressMessages(library(tidyr))
 suppressMessages(library(MSnbase))
 suppressMessages(library(robustbase))
+suppressMessages(library(biobroom))
 
 my_theme_box <- theme_bw() + theme(
   text=element_text(size=20,  family="serif"),
@@ -756,3 +757,34 @@ filterPSM <- function(psm,
   
   invisible(psm_int_sn_filter_low)
 }
+
+
+
+# Given a MSnSet with peptide level abundance, remove peptides which
+# are assigned to proteins with too few peptides assigned in total
+restrictPepPerProtein <- function(peptide_obj, min_peptides, plot=TRUE){
+  pep2protein <- fData(peptide_obj) %>%
+    select(Master.Protein.Accessions)
+  
+  n_pep_per_prot <- tidy(peptide_obj, addPheno=TRUE) %>%
+    merge(pep2protein, by.x="protein", by.y="row.names") %>%
+    filter(is.finite(value)) %>%
+    group_by(Master.Protein.Accessions, sample) %>%
+    tally()
+  
+  if(plot){
+    p <- ggplot(n_pep_per_prot, aes(log2(n))) +
+      geom_histogram() +
+      my_theme
+    print(p)
+  }
+  
+  retain_proteins <- n_pep_per_prot %>%
+    filter(n>=min_peptides) %>%
+    pull(Master.Protein.Accessions)
+  
+  
+  invisible(peptide_obj[fData(peptide_obj)$Master.Protein.Accessions %in% retain_proteins,])
+}
+
+
