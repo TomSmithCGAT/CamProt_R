@@ -190,8 +190,7 @@ parse_features <- function(infile,
   
   
   if(silac|TMT & level=="peptide"){
-    print(table(features_df$Quan.Info))
-    features_df <- features_df %>% filter(Quan.Info!="No Quan Values")
+    features_df <- features_df %>% filter(Quan.Info=="")
     print_summaries(features_df, master_protein_col, "Excluding features without quantification")
   }
   return(features_df)
@@ -245,7 +244,7 @@ makeMSNSet <- function(obj, samples_inf, ab_col_ix=3, level="peptide", quant_nam
   return(res)
 }
 
-plotMissing <- function(obj, verbose=TRUE, ...){
+plotMissing <- function(obj, missing_col=cbPalette[3], present_col='black', verbose=TRUE, ...){
   tmp_obj <- obj
   exprs(tmp_obj)[!is.na(exprs(tmp_obj))] <- 1
   exprs(tmp_obj)[is.na(exprs(tmp_obj))] <- 0
@@ -272,10 +271,9 @@ plotMissing <- function(obj, verbose=TRUE, ...){
     
     colnames(missing) <- pData(tmp_obj)$Sample_name
     
-    heatmap.2(missing, col = c("lightgray", "black"),
+    heatmap.2(missing, col = c(missing_col, present_col),
               scale = "none", dendrogram = "none",
               trace = "none", keysize = 0.5, key = FALSE,Colv = F, labRow=F,
-              #RowSideColors = ifelse(fData(x)$randna, "orange", "brown"),
               ...)
   }
 }
@@ -779,12 +777,28 @@ restrictPepPerProtein <- function(peptide_obj, min_peptides, plot=TRUE){
     print(p)
   }
   
+  retain_mask <- n_pep_per_prot %>%
+    merge(fData(peptide_obj)[,c('Sequence', 'Master.Protein.Accessions'), drop=FALSE],
+          by='Master.Protein.Accessions') %>%
+    mutate(retain=n>=min_peptides) %>%
+    select(Sequence, sample, retain) %>%
+    spread(key=sample, value=retain) %>%
+    tibble::column_to_rownames('Sequence')
+  
+  retain_mask[is.na(retain_mask)] <- FALSE
+  retain_mask <- retain_mask[rownames(peptide_obj),colnames(peptide_obj)]
+  
+  masked_exprs <- exprs(peptide_obj) * retain_mask
+  masked_exprs[masked_exprs==0] <- NA
+  
+  exprs(peptide_obj) <- as.matrix(masked_exprs)
+  
   retain_proteins <- n_pep_per_prot %>%
     filter(n>=min_peptides) %>%
     pull(Master.Protein.Accessions)
   
-  
-  invisible(peptide_obj[fData(peptide_obj)$Master.Protein.Accessions %in% retain_proteins,])
+  peptide_obj <- peptide_obj[fData(peptide_obj)$Master.Protein.Accessions %in% retain_proteins,]
+  invisible(peptide_obj)
 }
 
 
