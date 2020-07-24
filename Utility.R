@@ -233,6 +233,16 @@ makeMSNSet <- function(obj, samples_inf, ab_col_ix=3, level="peptide", quant_nam
   
   pdataCsv <- read.table(samples_inf, sep="\t", header=T, row.names = 1, colClasses="character")
   
+  e_cols <- colnames(exprsCsv)
+  p_rows <- rownames(pdataCsv)
+  if(length(union(p_rows, e_cols))!=length(e_cols)){
+    stop(sprintf(
+      paste0('Samples_inf rownames should match abundance columns in data. ',
+             'sample_inf rownames=%s,  Abundance columns=%s'),
+      paste(p_rows, collapse=','),
+      paste(e_cols, collapse=',')))
+  }
+  
   exprsCsv <- exprsCsv[,rownames(pdataCsv)]
   
   res <- MSnSet(as.matrix(sapply(exprsCsv, as.numeric)), fdataCsv, pdataCsv)
