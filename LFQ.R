@@ -183,3 +183,31 @@ removeLowSampleFeatures <- function(obj, min_samples, plot=TRUE){
   
   invisible(filterNA(obj, pNA=((ncol(obj)-min_samples)/ncol(obj))))
 }
+
+# From a tidied MSnSet, with a column of 'ratio' values,
+# obtain the correction factor the ratios
+getCorrectionFactor <- function(.data, group_col='Replicate', center=FALSE,
+                                ratio_col='ratio', median_ratio_col='median_ratio'){
+  
+  cor_factors <- .data %>%
+    group_by_at(vars(one_of(group_col))) %>%
+    summarise(!!(median_ratio_col):=median(!!sym(ratio_col), na.rm=TRUE))
+  
+  if(center){ # center median ratios
+    cor_factors$median_ratio <- cor_factors$median_ratio-mean(cor_factors$median_ratio)
+  }
+  
+  invisible(cor_factors)
+}
+
+
+# From a tidied MSnSet, with a column of 'ratio' values
+# and a vector of correction factors (see getCorrectionFactor()),
+# correct the ratios
+correctRatios <- function(.data, .cor_factor, group_col=Replicate,
+                          ratio_col='ratio', median_ratio_col='median_ratio',
+                          corrected_ratio_col='corrected_ratio'){
+  return_data <- .data %>% merge(.cor_factor, by=group_col)
+  return_data[[corrected_ratio_col]] <- return_data[[ratio_col]] - return_data[[median_ratio_col]] 
+  invisible(return_data)
+}
